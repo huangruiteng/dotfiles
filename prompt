@@ -66,8 +66,18 @@ prompt_git_super_status () {
     [ -z "$__CURRENT_GIT_STATUS" ] || prompt_segment yellow black " `git_super_status`"
 }
 
+prompt_my_env () {
+    # 只有变量有值时才显示
+    if [[ -n "$MY_ENV" ]]; then
+        # 配置显示样式：-f 文字色，-b 背景色，-i 图标（可选），-t 显示文本
+        # p10k segment -f 255 -b 41 -i '📌' -t "$MY_ENV"
+        prompt_segment 33 255 "📌 $MY_ENV"
+    fi
+}
+
 build_prompt() {
   prompt_ret_status
+  prompt_my_env
   prompt_virtualenv
   prompt_time
   prompt_dir

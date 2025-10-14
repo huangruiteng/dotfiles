@@ -63,6 +63,8 @@
 
 * 解压缩 https://theunarchiver.com/
 
+* Discord
+
 
 
 * 暂时搁置
@@ -226,6 +228,14 @@ https://blog.wangluyuan.cc/2020/12/24/forwarding-x11/
 * 自动化：
   * 安装brew
   * 下载安装powerline font
+
+### Trae
+
+#### 插件
+
+* GitLens
+* basedpyright
+* python
 
 ### Clion
 

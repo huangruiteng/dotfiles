@@ -60,8 +60,6 @@ alias dkcpstop="docker-compose stop"
 alias cpptree="~/dotfiles/cpp_etudes/cpptree.pl"
 alias calltree="~/dotfiles/cpp_etudes/calltree.pl"
 
-alias pull='~/dotfiles-local/pull_with_backup.sh' 
-alias push='~/dotfiles-local/push_with_backup.sh' 
 
 my-clang-format() {
     find "$1" -name '*.cpp' -o -name '*.h' | xargs clang-format -i
