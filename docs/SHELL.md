@@ -32,7 +32,7 @@ PATH 保留已激活虚拟环境、版本管理器和已有命令的优先级，
 
 旧机已有 `.aliases`、`.zshrc_local` 仍会加载；随后修复固定 Python/pip 与不正确引用路径的 fzf alias。新的私人扩展放在 `~/.config/personal/zshrc.local`，登录专用配置放在 `~/.zprofile.local`。替换旧 `.zprofile` 前将仍需要的个人配置合入本地 hook，备份不会自动执行。
 
-不再 source Bash 的 profile，也不逐个 source `mybin/` 下的脚本；该目录只进入 PATH。移除重复插件管理、启动下载/更新检查、多个旧 Conda hook 和每次删除补全缓存。插件优先读取 Homebrew 安装文件，旧机可回退已安装的独立插件；缺失时 shell 仍可用，doctor 报告缺项。旧 submodules 保留为可选资产，基础安装不拉取整套 Vim/C++ 等依赖。
+不再 source Bash 的 profile，也不逐个 source `mybin/` 下的脚本；该目录只进入 PATH。移除重复插件管理、启动下载/更新检查、多个旧 Conda hook 和每次删除补全缓存。插件优先读取 Homebrew 安装文件，旧机可回退已安装的独立插件；缺失时 shell 仍可用，doctor 报告缺项。旧 submodules 保留为可选资产，基础安装不拉取整套 Vim/C++ 等依赖。fzf 由 Homebrew 维护：新安装用 `brew install fzf`，已有 Homebrew 安装用 `brew upgrade fzf`；发现 Homebrew 版本后移除旧 `~/.fzf/bin` 的 PATH 项，避免新 shell 集成调用旧二进制。旧副本保留但不参与新终端解析。
 
 补全只初始化一次，保留按 Zsh 版本区分的 dump，并继续检查目录权限。语法高亮最后加载，避免后定义的 widget 绕过它。官方依据：[Zsh compinit](https://zsh.sourceforge.io/Doc/Release/Completion-System.html#Use-of-compinit)、[高亮插件安装顺序](https://github.com/zsh-users/zsh-syntax-highlighting/blob/master/INSTALL.md)。
 
