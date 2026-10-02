@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "apps": {
+    "gpt": {"app": "", "home": "~/.codex-gpt", "frontend": "~/Library/Application Support/Codex GPT Personal"},
+    "ds": {"app": "", "home": "~/.codex-ds", "frontend": "~/Library/Application Support/Codex DS Personal"},
+    "loopx": {"app": ""},
+    "ego": {"app": ""},
+    "typora": {"app": ""}
+  }
+}

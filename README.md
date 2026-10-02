@@ -1,6 +1,6 @@
 ## dotfiles
 
-个人 Apple Silicon 新机从 [personal-mac profile](profiles/personal-mac/README.md) 开始；[软件与偏好清单](profiles/personal-mac/SOFTWARE.md) 整理实用软件、安装顺序与验收项。基础入口现在是预览式 `bootstrap.sh --skills-repo <CS-Notes checkout>`：统一链接 shell 和公开 skills，显式 `--apply` 才写入。详见 [shell、快捷键与回滚](docs/SHELL.md)。下文保留历史软件偏好，不作为批量安装命令。
+个人 Apple Silicon 新机从 [personal-mac profile](profiles/personal-mac/README.md) 开始；[软件与偏好清单](profiles/personal-mac/SOFTWARE.md) 整理实用软件、安装顺序与验收项。[App 协同](profiles/personal-mac/APP_WORKFLOW.md) 提供 Codex GPT/DS、LoopX、Ego Lite、Typora 入口。预览式 `bootstrap.sh --skills-repo <CS-Notes checkout>` 统一链接 shell、App 命令和公开 skills，显式 `--apply` 才写入。详见 [shell、快捷键与回滚](docs/SHELL.md)。下文保留历史软件偏好，不作为批量安装命令。
 
 ### 从零搭建工作环境
 

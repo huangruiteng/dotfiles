@@ -17,11 +17,11 @@ sh bootstrap.sh --skills-repo "$HOME/Developer/CS-Notes"
 sh bootstrap.sh --skills-repo "$HOME/Developer/CS-Notes" --apply
 ```
 
-默认是预览；`--apply` 才写入。旧配置冲突先阅读，确定替换后加 `--replace`，安装器会将原文件或 symlink 移入本机备份并返回回滚 receipt。不会覆盖 SSH、Git 身份、编辑器配置或现有 App 数据。只装 shell 用 `--shell-only`；只装技能用 `--skills-only`。skills 的默认位置为 `~/.agents/skills`，通过 symlink 修改会直接进入 CS-Notes 的 Git diff。
+默认是预览；`--apply` 才写入。旧配置冲突先阅读，确定替换后加 `--replace`，安装器将原文件或 symlink 移入备份并返回回滚 receipt。不会覆盖 SSH、Git 身份、编辑器配置或 App 数据。shell 安装同时链接 `~/.local/bin/personal-apps`；只装 shell/命令用 `--shell-only`，只装技能用 `--skills-only`。skills 默认位置是 `~/.agents/skills`，通过 symlink 修改直接进入 CS-Notes 的 Git diff。
 
 `node@24` 的 bin 目录在没有现有 Node 时作为后备 PATH；已激活的环境优先。若当前 Node 不是 24，按实际项目选择，不覆盖版本管理器。私人配置放到 `~/.config/personal/zshrc.local`，示例见 `zshrc.example`。详见 [shell 与链接维护](../../docs/SHELL.md)。不运行 `brew bundle cleanup`。
 
-Python 使用 `uv python install 3.12` 和项目独立虚拟环境。Node 默认一套 24 LTS，仓库另有要求时按仓库锁文件/版本约束安装；不要把某个 App 自带的 Node、Python、pnpm 路径当成系统依赖。Rust、Go、pnpm、容器和 OCR 等按实际项目安装。
+Python 的固定 App 运行时由 Brewfile 的 `python@3.12` 提供，项目使用 uv 和独立虚拟环境。Node 默认一套 24 LTS，仓库另有要求时按锁文件/版本约束安装；不要把 App 自带的 Node、Python、pnpm 路径当成系统依赖。Rust、Go、pnpm、容器和 OCR 等按实际项目安装。
 
 `gitconfig.example` 不含身份信息；本人在新机设置 Git 名称和邮箱，GitHub 认证在新机进行。凭证、SSH 私钥和账号配置不放进这个 profile。
 
@@ -40,6 +40,6 @@ brew bundle check --file profiles/personal-mac/Brewfile
 brew bundle install --file profiles/personal-mac/Brewfile.apps --no-upgrade
 ```
 
-桌面 Agent 客户端与一个主编辑器从官方入口安装，登录与许可证由本人处理。Mendeley、CodexBar、CC Switch、办公 / 日常应用按清单逐项决定；完成报告必须记录安装、暂缓及设置验收。模型服务、容器 VM 和自动任务不随装机自动启动。
+桌面 Agent 客户端与一个主编辑器从官方入口安装，登录与许可证由本人处理。[App 协同与命令](./APP_WORKFLOW.md) 包含 `codex app`、`codex ds app`、LoopX Desktop、Ego Lite、Typora、状态隔离与 Finder/Dock 入口，需单独初始化和验收。Mendeley、CodexBar、CC Switch、办公 / 日常应用按清单决定，报告记录安装、暂缓及设置验收。自动任务不随装机启动。
 
 应用来自官方网站；包清单与 [Homebrew Bundle](https://docs.brew.sh/Brew-Bundle-and-Brewfile) 管理方式分开。记录实际版本和验收结果到新机本地，不把凭证、会话历史、进程环境或完整机器清单提交到仓库。
