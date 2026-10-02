@@ -1,17 +1,5 @@
-# Add reviewed lines to your own zshrc; do not replace an existing configuration.
-typeset -U path PATH
-path=(/opt/homebrew/opt/node@24/bin /opt/homebrew/bin /opt/homebrew/sbin "$HOME/.local/bin" $path)
-export PATH
-
-HISTFILE="$HOME/.zsh_history"
-HISTSIZE=10000
-SAVEHIST=10000
-setopt APPEND_HISTORY HIST_IGNORE_SPACE HIST_IGNORE_ALL_DUPS
-
-alias ll='ls -lah'
-alias gs='git status --short'
-
-# Private overrides are created on this machine and never exported by this profile.
-if [[ -r "$HOME/.config/personal/zshrc.local" ]]; then
-  source "$HOME/.config/personal/zshrc.local"
-fi
+# Install the repository zshrc using bootstrap.sh; keep private overrides here:
+# ~/.config/personal/zshrc.local
+# export EDITOR=vim
+# export CONDA_HOME="$HOME/miniconda3"  # then call conda-init when needed
+# DOTFILES_GIT_PROMPT=0                # skip even the branch-only Git prompt

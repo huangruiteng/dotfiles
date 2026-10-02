@@ -7,3 +7,12 @@ brew "ripgrep"
 brew "jq"
 brew "tmux"
 brew "git-lfs"
+
+# Interactive shell: loaded once, directly, with no startup downloads.
+brew "fzf"
+brew "zoxide"
+brew "fd"
+brew "zsh-autosuggestions"
+brew "zsh-syntax-highlighting"
+brew "zsh-history-substring-search"
+brew "zsh-completions"

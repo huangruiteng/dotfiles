@@ -1,6 +1,6 @@
 ## dotfiles
 
-个人 Apple Silicon 新机从 [personal-mac profile](profiles/personal-mac/README.md) 开始；[软件与偏好清单](profiles/personal-mac/SOFTWARE.md) 整理实用软件、安装顺序与验收项。下文是历史配置记录，不作为新机的一键安装入口。
+个人 Apple Silicon 新机从 [personal-mac profile](profiles/personal-mac/README.md) 开始；[软件与偏好清单](profiles/personal-mac/SOFTWARE.md) 整理实用软件、安装顺序与验收项。基础入口现在是预览式 `bootstrap.sh --skills-repo <CS-Notes checkout>`：统一链接 shell 和公开 skills，显式 `--apply` 才写入。详见 [shell、快捷键与回滚](docs/SHELL.md)。下文保留历史软件偏好，不作为批量安装命令。
 
 ### 从零搭建工作环境
 
@@ -80,9 +80,9 @@
 * my dotfiles, the design philosophy is illustrated in my [Shell Note](https://github.com/huangrt01/CS-Notes/blob/master/Notes/Output/Shell-MIT-6-NULL.md)
 * easy-to-use
 ```shell
-chmod 777 bootstrap.sh
-./bootstrap.sh
-zsh
+sh bootstrap.sh --skills-repo "$HOME/Developer/CS-Notes"
+# 核对预览后执行；已有文件冲突需先审查并选择 --replace 备份。
+sh bootstrap.sh --skills-repo "$HOME/Developer/CS-Notes" --apply
 ```
 
 #### submodules
