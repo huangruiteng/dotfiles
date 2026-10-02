@@ -24,7 +24,8 @@ _dotfiles_plugin_file() {
   return 1
 }
 typeset -U fpath
-for _df_dir in /opt/homebrew/share/zsh/site-functions /usr/local/share/zsh/site-functions \
+for _df_dir in /opt/homebrew/share/zsh-completions /usr/local/share/zsh-completions \
+    /opt/homebrew/share/zsh/site-functions /usr/local/share/zsh/site-functions \
     "$DOTFILES_ROOT/oh-my-zsh/custom/plugins/zsh-completions/src" \
     "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-completions/src"; do
   [[ -d "$_df_dir" ]] && fpath=("$_df_dir" $fpath)
