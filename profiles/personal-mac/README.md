@@ -1,6 +1,6 @@
 # Personal Mac profile
 
-面向 Apple Silicon 的精简开发配置，适合从公开资料重建个人电脑。此目录独立使用，不调用仓库根目录的历史 `bootstrap.sh` / `mac_install.sh`，也不读取旧 SSH、账号或设备配置。
+面向 Apple Silicon 的精简开发配置，适合从公开资料重建个人电脑。使用基础 Brewfile 和新版预览式 `bootstrap.sh`，不读取旧 SSH、账号或设备配置。
 
 ## 安装与验收
 
@@ -10,7 +10,16 @@
 brew bundle install --file profiles/personal-mac/Brewfile --no-upgrade
 ```
 
-`node@24` 的 bin 目录需进入 PATH。对照 `zshrc.example` 合并必要配置，保留已有文件并做本机备份；登录 shell 的 Homebrew 初始化遵循安装器输出。不要覆盖配置，不运行 `brew bundle cleanup`。
+随后 clone 公开 CS-Notes 到稳定目录，将 shell 与审查后的 skills 一起链接到用户目录：
+
+```sh
+sh bootstrap.sh --skills-repo "$HOME/Developer/CS-Notes"
+sh bootstrap.sh --skills-repo "$HOME/Developer/CS-Notes" --apply
+```
+
+默认是预览；`--apply` 才写入。旧配置冲突先阅读，确定替换后加 `--replace`，安装器会将原文件或 symlink 移入本机备份并返回回滚 receipt。不会覆盖 SSH、Git 身份、编辑器配置或现有 App 数据。只装 shell 用 `--shell-only`；只装技能用 `--skills-only`。skills 的默认位置为 `~/.agents/skills`，通过 symlink 修改会直接进入 CS-Notes 的 Git diff。
+
+`node@24` 的 bin 目录在没有现有 Node 时作为后备 PATH；已激活的环境优先。若当前 Node 不是 24，按实际项目选择，不覆盖版本管理器。私人配置放到 `~/.config/personal/zshrc.local`，示例见 `zshrc.example`。详见 [shell 与链接维护](../../docs/SHELL.md)。不运行 `brew bundle cleanup`。
 
 Python 使用 `uv python install 3.12` 和项目独立虚拟环境。Node 默认一套 24 LTS，仓库另有要求时按仓库锁文件/版本约束安装；不要把某个 App 自带的 Node、Python、pnpm 路径当成系统依赖。Rust、Go、pnpm、容器和 OCR 等按实际项目安装。
 
