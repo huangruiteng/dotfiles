@@ -1,10 +1,10 @@
 # Shell 与技能链接维护
 
-新版基础安装只链接 `.zshrc`、`.zprofile` 和选集中的 skills。Git 身份、SSH、应用登录、会话数据库与旧 plugin cache 不在安装范围内。`mac_install.sh` 是同一预览入口的兼容包装，不再安装包、改登录 shell、递归拉子模块或覆盖配置。
+新版基础安装链接 `.zshrc`、`.zprofile`、`personal-apps` 命令和选集中的 skills。Git 身份、SSH、应用登录、会话数据库与旧 plugin cache 不在安装范围内。`mac_install.sh` 是同一预览入口，不安装包、改登录 shell、拉子模块或覆盖配置。
 
 ## 安装与回滚
 
-先从 [personal-mac profile](../profiles/personal-mac/README.md) 安装基础依赖。需要 Python 3.9+；profile 推荐 uv 管理的 Python。将 dotfiles 和 CS-Notes clone 到长期维护的路径，不要链接临时 worktree。
+先从 [personal-mac profile](../profiles/personal-mac/README.md) 安装依赖。链接安装器需要 Python 3.9+，App 命令需要 Python 3.11+，profile 提供固定 Python 3.12；项目环境由 uv 管理。将 dotfiles 和 CS-Notes clone 到长期路径，不链接临时 worktree。
 
 ```sh
 sh bootstrap.sh --skills-repo "$HOME/Developer/CS-Notes"
@@ -26,7 +26,7 @@ python3 tools/install.py --rollback /path/to/receipt.json --apply
 
 ## 配置加载与兼容
 
-`zprofile` 只加载 PATH 和 `~/.zprofile.local`；`zshrc` 加载共享 PATH，只有交互 shell 才加载补全、按键、插件与 prompt。重复 source 不重复初始化；更改插件配置后开新 shell。非交互 Agent 显式 source 时只得到 PATH，不注入插件输出。
+`zprofile` 只加载 PATH 和 `~/.zprofile.local`；`zshrc` 加载共享 PATH 与无启动子进程的 App 路由 functions，只有交互 shell 才加载补全、按键、插件与 prompt。重复 source 不重复初始化；配置变化后开新 shell。非交互 Agent 显式 source 时得到 PATH 和路由，不注入插件输出。命令与上游二进制的区别见 [App 协同](../profiles/personal-mac/APP_WORKFLOW.md)。
 
 PATH 保留已激活虚拟环境、版本管理器和已有命令的优先级，追加存在的通用用户工具路径。没有 Node 时才加入 Node 24 后备目录。默认不激活 Conda；需要时设置 `CONDA_HOME`，执行 `conda-init` 再激活环境。
 
@@ -56,7 +56,7 @@ prompt 显示退出码、环境标签、虚拟环境、目录和 Git 分支，�
 ## 验收
 
 ```sh
-python3 -m unittest discover -s tests -v
+python3.12 -m unittest discover -s tests -v
 zsh -ic dotfiles-doctor
 python3 tools/benchmark-shell.py --repeat 5
 ```

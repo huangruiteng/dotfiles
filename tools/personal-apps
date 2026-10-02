@@ -1,0 +1,18 @@
+#!/bin/sh
+# Resolve the checkout through the installed symlink; never source a private shell.
+set -eu
+app_source=$0
+while [ -L "$app_source" ]; do
+  app_dir=$(CDPATH= cd -- "$(dirname -- "$app_source")" && pwd)
+  app_target=$(readlink "$app_source")
+  case "$app_target" in /*) app_source=$app_target ;; *) app_source=$app_dir/$app_target ;; esac
+done
+app_dir=$(CDPATH= cd -- "$(dirname -- "$app_source")" && pwd)
+for app_python in /opt/homebrew/opt/python@3.12/bin/python3.12 /usr/local/opt/python@3.12/bin/python3.12; do
+  if [ -x "$app_python" ]; then exec "$app_python" "$app_dir/personal_apps.py" "$@"; fi
+done
+if command -v uv >/dev/null 2>&1; then
+  app_python=$(uv --offline --no-config python find --no-project '>=3.11' 2>/dev/null) || app_python=
+  if [ -n "$app_python" ]; then exec "$app_python" "$app_dir/personal_apps.py" "$@"; fi
+fi
+exec python3 "$app_dir/personal_apps.py" "$@"

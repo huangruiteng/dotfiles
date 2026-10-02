@@ -22,7 +22,7 @@ else
   printf 'MISSING developer tools\n'
   failures=$((failures + 1))
 fi
-for tool in brew git gh uv node rg jq tmux git-lfs; do
+for tool in brew git gh uv python3.12 node rg jq tmux git-lfs personal-apps; do
   check_command "$tool"
 done
 if command -v node >/dev/null 2>&1; then

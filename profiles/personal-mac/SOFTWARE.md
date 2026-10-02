@@ -13,8 +13,10 @@
 | KeepingYouAwake | 长任务期间按需防休眠；使用有期限的会话 | [官方](https://keepingyouawake.app/) / `keepingyouawake` |
 | 一个主编辑器 | VS Code 或已有偏好的 Cursor / Trae，任选一个；Sublime Text 可另作轻量文本查看器 | [VS Code](https://code.visualstudio.com/)、[Cursor](https://cursor.com/)、[Trae](https://www.trae.ai/)、[Sublime Text](https://www.sublimetext.com/) |
 | 桌面 Agent 客户端 | 官方发行、个人账号；模型选项以当前账号为准 | [OpenAI 官方入口](https://learn.chatgpt.com/docs/app) |
+| LoopX Desktop | 长程工作状态；App 独立安装，核对配套 runtime 与终端 CLI | [公开发行](https://github.com/loopx-project/loopx/releases) / [桌面说明](https://github.com/loopx-project/loopx/blob/main/apps/desktop/loopx-control-plane/README.md) |
+| Ego Lite | Agent 浏览器；onboarding 后验收 CLI 和公开 skill | [官网](https://lite.ego.app/) / [公开技能仓库](https://github.com/citrolabs/ego-lite) |
 
-前五项可用 `Brewfile.apps` 安装；它与 CLI 基线分开，先看已有应用，再安装缺项。不安装多个编辑器、客户端副本或回滚版本来“还原旧机”。登录、付费授权与系统权限由本人处理；防休眠不意味着自动开启所有登录项。
+前五项用 `Brewfile.apps` 安装，CLI 基线独立。先盘点已有应用再补缺项；Codex GPT/DS 启动和命令验收按 [APP_WORKFLOW.md](./APP_WORKFLOW.md) 执行，不克隆旧机副本或回滚版本。登录、许可证与系统权限由本人处理；防休眠不自动开启所有登录项。
 
 ## 按需补充
 

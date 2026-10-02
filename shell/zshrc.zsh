@@ -1,5 +1,6 @@
 source "$DOTFILES_ROOT/shell/path.zsh"
-# Explicit sourcing in an agent's non-interactive shell loads PATH only.
+source "$DOTFILES_ROOT/shell/apps.zsh"
+# Non-interactive agents get PATH and App routes, without prompt/plugin startup.
 [[ -o interactive ]] || return 0
 [[ ${_DOTFILES_SHELL_LOADED:-} == 1 ]] && return 0
 typeset -g _DOTFILES_SHELL_LOADED=1

@@ -147,7 +147,8 @@ def main():
             home = args.home.expanduser().absolute()
             # Canonicalize only the home; reject redirected child directories.
             home = home.resolve()
-            links = [] if args.skills_only else [(ROOT / 'zshrc', home / '.zshrc'), (ROOT / 'zprofile', home / '.zprofile')]
+            links = [] if args.skills_only else [(ROOT / 'zshrc', home / '.zshrc'), (ROOT / 'zprofile', home / '.zprofile'),
+                                                (ROOT / 'tools/personal-apps', home / '.local/bin/personal-apps')]
             if not args.shell_only:
                 if not args.skills_repo:
                     p.error('--skills-repo is required; use --shell-only to install just the shell')
