@@ -1,0 +1,13 @@
+# Install individual entries when a real task needs them, not the whole file.
+# Native C/C++ builds and model runtime source work:
+brew "cmake"
+brew "ninja"
+brew "pkgconf"
+# Local containers; installation does not imply starting a VM:
+brew "colima"
+brew "docker"
+brew "docker-compose"
+# Reading, OCR and media processing:
+brew "poppler"
+brew "tesseract"
+brew "ffmpeg"
