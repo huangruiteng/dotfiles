@@ -1,0 +1,7 @@
+# Selected personal GUI baseline. Inspect existing apps before installing.
+# Licensing, account login and system permissions remain user actions.
+cask "iterm2"
+cask "typora"
+cask "google-chrome"
+cask "the-unarchiver"
+cask "keepingyouawake"

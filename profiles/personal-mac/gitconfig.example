@@ -1,0 +1,12 @@
+# Merge into the new machine's config after reviewing existing values.
+# Set user.name/user.email locally; this template contains no account identity.
+[user]
+    useConfigOnly = true
+[init]
+    defaultBranch = main
+[fetch]
+    prune = true
+[pull]
+    ff = only
+[include]
+    path = ~/.config/personal/gitconfig.local

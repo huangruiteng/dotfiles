@@ -1,0 +1,9 @@
+# Personal Apple Silicon development baseline. No services or account setup.
+brew "git"
+brew "gh"
+brew "uv"
+brew "node@24"
+brew "ripgrep"
+brew "jq"
+brew "tmux"
+brew "git-lfs"

@@ -1,5 +1,7 @@
 ## dotfiles
 
+个人 Apple Silicon 新机从 [personal-mac profile](profiles/personal-mac/README.md) 开始；[软件与偏好清单](profiles/personal-mac/SOFTWARE.md) 整理实用软件、安装顺序与验收项。下文是历史配置记录，不作为新机的一键安装入口。
+
 ### 从零搭建工作环境
 
 * Macbook
