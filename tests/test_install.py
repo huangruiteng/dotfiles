@@ -1,6 +1,8 @@
 import hashlib
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -39,6 +41,18 @@ class InstallTests(unittest.TestCase):
  def test_parent_symlink_refused(self):
   alias=self.home/'redirect';alias.symlink_to(self.root,target_is_directory=True)
   with self.assertRaises(ValueError):m.install([(self.source,alias/'file')],self.home,True)
+ def test_default_preferences_preflight_and_rollback(self):
+  target=self.home/'.tmux.conf';target.write_text('my tmux')
+  argv=[sys.executable,str(ROOT/'tools/install.py'),'--shell-only','--home',str(self.home),'--apply']
+  rejected=subprocess.run(argv,capture_output=True,text=True)
+  self.assertNotEqual(rejected.returncode,0);self.assertFalse(self.dest.exists())
+  accepted=subprocess.run(argv+['--replace'],capture_output=True,text=True,check=True)
+  result=json.loads(accepted.stdout);self.assertTrue(target.is_symlink())
+  self.assertTrue(self.dest.is_symlink())
+  if sys.platform=='darwin':
+   self.assertTrue((self.home/'Library/Application Support/iTerm2/DynamicProfiles/dotfiles-personal.json').is_symlink())
+  m.rollback(Path(result['receipt']),True)
+  self.assertEqual(target.read_text(),'my tmux');self.assertFalse(self.dest.exists())
  def test_skill_digest_and_extra_files(self):
   repo=self.root/'repo';skill=repo/'.codex/skills/demo';skill.mkdir(parents=True)
   text='---\nname: demo\ndescription: Example\n---\n';(skill/'SKILL.md').write_text(text)

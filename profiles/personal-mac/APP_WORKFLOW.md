@@ -1,6 +1,6 @@
 # 个人 Mac 的 App 协同与命令
 
-Codex GPT 负责主要开发、判断和交接；Codex DS 是独立模型入口；LoopX 展示长程工作状态；Ego Lite 提供 Agent 可操作的浏览器；Typora 用于阅读和修改 Markdown。路由由 dotfiles 提供，厂商程序保留自己的维护入口。
+Codex GPT 负责主要开发、判断和交接；Codex DS 是独立模型入口；Ego Lite 提供 Agent 可操作的浏览器；Typora 用于阅读和修改 Markdown。路由由 dotfiles 提供，厂商程序保留自己的维护入口。**第一步不安装、更新或启动 LoopX runtime，不恢复旧工作状态。**本文的 LoopX 路由只作后续阶段参考；完整阶段边界见 [装机与验收](./SETUP_STEP1.md)。
 
 ## 软件与安装入口
 
@@ -8,11 +8,11 @@ Codex GPT 负责主要开发、判断和交接；Codex DS 是独立模型入口�
 | --- | --- | --- |
 | Codex Desktop | [官方入口](https://learn.chatgpt.com/docs/app)；自动查找 `/Applications/ChatGPT.app` 或 `Codex.app`，再查 `~/Applications` | 个人账号登录、模型选择 |
 | Codex CLI | [官方安装](https://learn.chatgpt.com/docs/cli)，例如 `npm install -g @openai/codex`；只选一种维护方式 | 对应 home 的登录 |
-| LoopX Desktop | [Releases](https://github.com/loopx-project/loopx/releases) 的 Apple Silicon DMG，按 `DESKTOP-SHA256SUMS` 验证 | 首次运行许可、App/runtime 不一致时的选择 |
+| LoopX Desktop（后续阶段） | [Releases](https://github.com/loopx-project/loopx/releases)；本步不安装或启动 | 后续另行决定 |
 | Ego Lite | [厂商下载](https://lite.ego.app/) 与 [安装说明](https://github.com/citrolabs/ego-lite/blob/main/skills/ego-browser/references/install.md) | onboarding、是否导入新机个人 Chrome profile |
 | Typora | `Brewfile.apps` 或 [官网](https://typora.io/) | 许可证、inline math |
 
-App 命令需要 Python 3.11+。基础 Brewfile 提供固定 Python 3.12，项目 venv 由 uv 管理；入口找不到 Homebrew Python 时，用 uv **离线查找**已安装的合适版本，不下载解释器，不使用 App 内置路径。
+App 命令需要 Python 3.11+。基础 Brewfile 提供固定 Python 3.12，项目 venv 由 uv 管理；入口找不到 Homebrew Python 时，用 uv **离线查找**已安装的合适版本，不下载解释器，不使用 App 内置路径。安装 CLI 前先盘点已有官方可用入口，避免重复安装；App bundle 内部路径不是永久接口，升级后复核。
 
 从 dotfiles 根目录执行：
 
@@ -89,17 +89,17 @@ personal-apps shortcuts
 personal-apps shortcuts --apply
 ```
 
-在 `~/Applications` 生成 `Codex GPT Personal.app` 与 `Codex DS Personal.app`，只调用同一脚本。已有同名 App 则停止并保留。拖入 Dock 后分别验收；厂商图标仍走厂商默认路由。升级 Codex 前关闭两个窗口，走厂商入口，再复核隔离；配置变化也先正常退出再开，不偷偷重启任务。
+在 `~/Applications` 生成 `Codex GPT Personal.app` 与 `Codex DS Personal.app`，只调用同一脚本。已有同名 App 则停止并保留。Finder 不读取 zprofile：启动器保留传入 PATH 的优先级，再补充已安装的用户 / Homebrew 工具路径。必须在它新启动的 Agent 进程检查工具可用，当前终端的 PATH 不足以证明通过。拖入 Dock 后分别验收；厂商图标仍走厂商默认路由。升级 Codex 前关闭两个窗口，走厂商入口，再复核隔离；配置变化也先正常退出再开，不偷偷重启任务。
 
-## LoopX、Ego Lite、Typora 验收
+## Ego Lite、Typora 与后续 LoopX
 
-**LoopX**：Desktop 与 Python package 是两个安装面，CLI 不自动提供 `LoopX.app`。按 [桌面 README](https://github.com/loopx-project/loopx/blob/main/apps/desktop/loopx-control-plane/README.md) 安装公开预览版。首次启动可能准备配套 runtime，已有其它 runtime 时读版本提示、记录唯一维护选择，避免多套安装互相覆盖。终端 doctor 与 App readiness 分别验证。App 的 Update LoopX 用于桌面及配套 runtime，独立 CLI/浏览器按对应文档维护。不迁移 registry，不创建周期任务；系统许可本人处理。
+**LoopX（后续阶段）**：Desktop 与 Python package 是两个安装面，CLI 不自动提供 `LoopX.app`。安装或首次启动可能准备 runtime，因此本阶段不执行。后续授权后按 [桌面 README](https://github.com/loopx-project/loopx/blob/main/apps/desktop/loopx-control-plane/README.md) 核对 App/runtime 与唯一维护入口，另行验收。
 
 **Ego Lite**：onboarding 后确认 `command -v ego-browser`，运行 `ego-browser nodejs -e 'console.log("ego-browser ready")'`。核对两套 Codex 实际发现的公开 `ego-browser` skill；厂商 onboarding 安装或 `npx skills add citrolabs/ego-lite` 二选一，避免同名副本。只选择新机个人 Chrome profile，不搬旧浏览器数据。真正验收用一页公开页面、一个 TaskSpace，完成后 `finish({keep: []})`。App 已打开不等于 Agent 集成成功。
 
-**Typora**：用 `typora app <path>` 或 `typora <path>` 打开 Markdown，验收 inline math、块公式、相对图片和许可证，不读取或提交激活数据。
+**Typora / Markdown 候选**：用 `typora app <path>` 或 `typora <path>` 打开 Markdown，验收 inline math、块公式、相对图片、表格及许可证；用 Command + 左键实测中文、空格、编码路径和真实笔记跳转，确认目标正文，返回后复测。先通过 [验收页](./smoke/reading.md)，再设置默认关联并从 Finder 双击验证。不读取或提交激活数据。其它阅读器按同一门槛试用。
 
-报告记录源 commit、function/原生 binary、两个 home/前端、模型与一次请求、重复聚焦、Finder 入口、App/CLI 版本、LoopX 版本匹配、Ego CLI/skill/公开页、Typora 数学与图片及待本人操作。启动请求不等于 GUI ready。
+报告记录源 commit、function/原生 binary、两个 home/前端、模型与一次真实请求、重复聚焦、Finder 入口、App/CLI 版本、Ego CLI/skill/公开页、阅读器数学 / 图片 / Command + 左键及待本人操作，明确第二步尚未开始。启动请求不等于 GUI ready；LoopX 不在第一步验收清单。飞书另按 [第一阶段授权流程](./SETUP_STEP1.md#agentego-与飞书) 安装、完成 user 登录并服务端验证。
 
 ## 回滚与公开边界
 

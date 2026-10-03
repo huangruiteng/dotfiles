@@ -96,11 +96,24 @@ def executable(bundle):
     return path
 
 
-def clean_env(spec):
+def clean_env(spec, home=None):
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(('CODEX_', 'OPENAI_', 'DEEPSEEK_', 'ELECTRON_', 'DYLD_'))
            and k not in ('NODE_OPTIONS', 'DISABLE_AUTO_UPDATE')}
     env['CODEX_HOME'] = str(spec['home'])
+    # Finder does not read zprofile. Keep the caller's active environment first,
+    # then add the same installed fallbacks used by the public shell.
+    home = Path.home() if home is None else Path(home)
+    candidates = [home / '.local/bin', home / '.cargo/bin', home / '.npm-global/bin', home / '.mybin',
+                  Path('/opt/homebrew/bin'), Path('/opt/homebrew/sbin'), Path('/usr/local/bin'),
+                  Path('/usr/local/sbin'), Path('/opt/homebrew/opt/node@24/bin'),
+                  Path('/usr/local/opt/node@24/bin'), Path('/opt/homebrew/opt/python@3.12/libexec/bin'),
+                  Path('/usr/local/opt/python@3.12/libexec/bin')]
+    paths = [p for p in env.get('PATH', '/usr/bin:/bin:/usr/sbin:/sbin').split(os.pathsep) if p]
+    for path in candidates:
+        if path.is_dir() and str(path) not in paths:
+            paths.append(str(path))
+    env['PATH'] = os.pathsep.join(paths)
     return env
 
 
@@ -278,7 +291,7 @@ def open_app(home, role, files, account=None, dry_run=False):
         subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(bundle)],
                        check=True, capture_output=True)
         spec['frontend'].mkdir(mode=0o700, parents=True, exist_ok=True)
-        env = clean_env(spec)
+        env = clean_env(spec, home)
         env['CODEX_ELECTRON_USER_DATA_PATH'] = str(spec['frontend'])
         child = subprocess.Popen([str(exe), '--user-data-dir=' + str(spec['frontend'])],
                                  env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -297,10 +310,11 @@ def open_app(home, role, files, account=None, dry_run=False):
 def cli(home, role, args, account=None):
     spec = route(home, role, account)
     check_provider(spec, role)
-    binary = shutil.which('codex')
+    env = clean_env(spec, home)
+    binary = shutil.which('codex', path=env['PATH'])
     if not binary:
         raise ValueError('Install the official Codex CLI first')
-    os.execvpe(binary, [binary, *args], clean_env(spec))
+    os.execvpe(binary, [binary, *args], env)
 
 
 def status(home):

@@ -2,4 +2,6 @@
 # ~/.config/personal/zshrc.local
 # export EDITOR=vim
 # export CONDA_HOME="$HOME/miniconda3"  # then call conda-init when needed
-# DOTFILES_GIT_PROMPT=0                # skip even the branch-only Git prompt
+# DOTFILES_GIT_PROMPT=0                # skip the Git status query
+# DOTFILES_PROMPT_STYLE=compact        # omit Powerline arrows
+# DOTFILES_ITERM_APPEARANCE=0          # keep your own iTerm profile/fonts

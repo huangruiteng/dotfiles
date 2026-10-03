@@ -2,7 +2,7 @@
 brew "git"
 brew "gh"
 brew "uv"
-brew "python@3.12" # Stable runtime for App commands and LoopX Desktop bootstrap.
+brew "python@3.12" # Stable runtime for personal App commands.
 brew "node@24"
 brew "ripgrep"
 brew "jq"

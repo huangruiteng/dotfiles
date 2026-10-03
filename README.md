@@ -1,6 +1,6 @@
 ## dotfiles
 
-个人 Apple Silicon 新机从 [personal-mac profile](profiles/personal-mac/README.md) 开始；[软件与偏好清单](profiles/personal-mac/SOFTWARE.md) 整理实用软件、安装顺序与验收项。[App 协同](profiles/personal-mac/APP_WORKFLOW.md) 提供 Codex GPT/DS、LoopX、Ego Lite、Typora 入口。预览式 `bootstrap.sh --skills-repo <CS-Notes checkout>` 统一链接 shell、App 命令和公开 skills，显式 `--apply` 才写入。详见 [shell、快捷键与回滚](docs/SHELL.md)。下文保留历史软件偏好，不作为批量安装命令。
+个人 Apple Silicon 新机从 [第一阶段装机与验收](profiles/personal-mac/SETUP_STEP1.md) 和 [personal-mac profile](profiles/personal-mac/README.md) 开始。默认延续完整 Git alias、通用 shell helper、fzf / 跳目录 / 建议 / 高亮，以及 Meslo / Pastel 分段 Git prompt；完整 checkout 和真实使用验收是交付条件。[软件与偏好清单](profiles/personal-mac/SOFTWARE.md) 和 [App 协同](profiles/personal-mac/APP_WORKFLOW.md) 提供 Codex GPT/DS、Ego Lite、Typora 的选择与入口。第一步不安装或启动 LoopX runtime，不迁移旧状态。预览式 `bootstrap.sh --skills-repo <CS-Notes checkout>` 统一链接 shell、终端偏好、App 命令和公开 skills，显式 `--apply` 才写入。详见 [shell、快捷键与回滚](docs/SHELL.md)。下文保留历史软件偏好，不作为批量安装命令。
 
 ### 从零搭建工作环境
 

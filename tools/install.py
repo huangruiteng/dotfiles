@@ -136,6 +136,8 @@ def main():
     p.add_argument('--skills-only', action='store_true')
     p.add_argument('--apply', action='store_true', help='apply the displayed plan; default is read-only')
     p.add_argument('--replace', action='store_true', help='back up conflicts; never overwrite without backup')
+    p.add_argument('--no-preferences', action='store_true', help='skip tmux and the macOS iTerm dynamic profile')
+    p.add_argument('--allow-export', action='store_true', help='explicitly allow reviewed non-Git exports; full checkout completeness cannot be verified')
     p.add_argument('--rollback', type=Path, help='preview or apply rollback from a local receipt')
     args = p.parse_args()
     try:
@@ -147,8 +149,18 @@ def main():
             home = args.home.expanduser().absolute()
             # Canonicalize only the home; reject redirected child directories.
             home = home.resolve()
+            if not args.allow_export:
+                from check_checkout import require_checkout
+                require_checkout(ROOT)
+                if not args.shell_only and args.skills_repo:
+                    require_checkout(args.skills_repo)
             links = [] if args.skills_only else [(ROOT / 'zshrc', home / '.zshrc'), (ROOT / 'zprofile', home / '.zprofile'),
                                                 (ROOT / 'tools/personal-apps', home / '.local/bin/personal-apps')]
+            if not args.skills_only and not args.no_preferences:
+                links.append((ROOT / 'tmux.conf', home / '.tmux.conf'))
+                if sys.platform == 'darwin':
+                    links.append((ROOT / 'profiles/personal-mac/iterm2.json',
+                                  home / 'Library/Application Support/iTerm2/DynamicProfiles/dotfiles-personal.json'))
             if not args.shell_only:
                 if not args.skills_repo:
                     p.error('--skills-repo is required; use --shell-only to install just the shell')
