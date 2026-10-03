@@ -89,11 +89,21 @@ class AppTests(unittest.TestCase):
                                      'CODEX_APP_TOOLS_PIPE_PATH': '/old/pipe',
                                      'OPENAI_API_KEY': 'private', 'DEEPSEEK_API_KEY': 'private',
                                      'NODE_OPTIONS': '--require=old', 'HTTPS_PROXY': 'http://localhost:1234'}):
-            env = m.clean_env({'home': self.home / '.codex-gpt'})
+            env = m.clean_env({'home': self.home / '.codex-gpt'}, self.home)
         self.assertEqual(env['CODEX_HOME'], str(self.home / '.codex-gpt'))
         for key in ('CODEX_THREAD_ID', 'CODEX_APP_TOOLS_PIPE_PATH', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'NODE_OPTIONS'):
             self.assertNotIn(key, env)
         self.assertIn('HTTPS_PROXY', env)
+
+    def test_finder_path_includes_user_tools_without_masking_active_environment(self):
+        tools = self.home / '.local/bin'; tools.mkdir(parents=True)
+        active = self.home / 'project-venv/bin'; active.mkdir(parents=True)
+        with patch.dict(os.environ, {'PATH': str(active) + ':/usr/bin:/bin'}):
+            env = m.clean_env({'home': self.home / 'nested/.codex-gpt'}, self.home)
+        paths = env['PATH'].split(os.pathsep)
+        self.assertEqual(paths[0], str(active))
+        self.assertIn(str(tools), paths)
+        self.assertEqual(len(paths), len(set(paths)))
 
     def test_exact_frontend_and_finder_child_ownership(self):
         frontend = self.home / 'Library/Application Support/Codex GPT'
@@ -193,6 +203,15 @@ class AppTests(unittest.TestCase):
             m.cli(self.home, 'gpt', ['exec', '--', 'prompt with spaces'])
         self.assertEqual(execute.call_args.args[1][1:], ['exec', '--', 'prompt with spaces'])
         self.assertEqual(execute.call_args.args[2]['CODEX_HOME'], str(self.home / '.codex-gpt'))
+
+    def test_cli_finds_existing_user_install_from_finder_path(self):
+        self.initialize()
+        binary = self.home / '.local/bin/codex'
+        binary.parent.mkdir(parents=True)
+        binary.write_text('#!/bin/sh\nexit 0\n'); binary.chmod(0o755)
+        with patch.dict(os.environ, {'PATH': '/usr/bin:/bin'}), patch.object(m.os, 'execvpe') as execute:
+            m.cli(self.home, 'gpt', ['--version'])
+        self.assertEqual(execute.call_args.args[0], str(binary))
 
     def test_shortcuts_preview_and_existing_preserved(self):
         entry = self.home / '.local/bin/personal-apps'
