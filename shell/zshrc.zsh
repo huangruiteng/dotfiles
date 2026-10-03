@@ -2,7 +2,10 @@ source "$DOTFILES_ROOT/shell/path.zsh"
 source "$DOTFILES_ROOT/shell/apps.zsh"
 # Non-interactive agents get PATH and App routes, without prompt/plugin startup.
 [[ -o interactive ]] || return 0
-[[ ${_DOTFILES_SHELL_LOADED:-} == 1 ]] && return 0
+if [[ ${_DOTFILES_SHELL_LOADED:-} == 1 ]]; then
+  dotfiles-reload
+  return 0
+fi
 typeset -g _DOTFILES_SHELL_LOADED=1
 
 HISTFILE=${HISTFILE:-$HOME/.zsh_history}
@@ -50,6 +53,8 @@ bindkey -M viins '^[[B' history-beginning-search-forward
 bindkey -M viins '^[OA' history-beginning-search-backward
 bindkey -M viins '^[OB' history-beginning-search-forward
 
+source "$DOTFILES_ROOT/shell/git.zsh"
+
 # Old machine aliases are optional; remove only the known broken overrides below.
 [[ ${DOTFILES_SKIP_LOCAL:-0} != 1 && -r "$HOME/.aliases" ]] && source "$HOME/.aliases"
 unalias python pip pip3 vfzf cdfzf gitfzf 2>/dev/null
@@ -84,26 +89,31 @@ else
   unset _df_jump
 fi
 
-# Fast branch-only prompt: no worktree scan or Python process per prompt.
-_dotfiles_precmd() {
-  local code=$? branch='' context="${MY_ENV:-}" envname=''
-  [[ ${DOTFILES_GIT_PROMPT:-1} == 1 ]] && branch=$(command git symbolic-ref --quiet --short HEAD 2>/dev/null)
-  [[ -n ${VIRTUAL_ENV:-} ]] && envname=${VIRTUAL_ENV:t}
-  [[ -z "$envname" && -n ${CONDA_DEFAULT_ENV:-} ]] && envname=$CONDA_DEFAULT_ENV
-  context=${context//\%/%%}; envname=${envname//\%/%%}; branch=${branch//\%/%%}
-  PROMPT=''
-  (( code )) && PROMPT="%F{red}$code %f"
-  [[ -n "$context" ]] && PROMPT+="%F{magenta}[$context]%f "
-  [[ -n "$envname" ]] && PROMPT+="%F{green}($envname)%f "
-  PROMPT+='%F{blue}%~%f'
-  [[ -n "$branch" ]] && PROMPT+=" %F{yellow}$branch%f"
-  PROMPT+=' %# '
-  return 0
-}
+source "$DOTFILES_ROOT/shell/prompt.zsh"
 unsetopt PROMPT_SUBST
 autoload -Uz add-zsh-hook
 add-zsh-hook precmd _dotfiles_precmd
 PROMPT='%F{blue}%~%f %# '
+
+# Reload public aliases/appearance and private overrides without initializing
+# plugins, completion or ZLE widgets a second time.
+dotfiles-reload() {
+  [[ ${DOTFILES_SKIP_LOCAL:-0} != 1 && -r "$HOME/.aliases" ]] && source "$HOME/.aliases"
+  unalias python pip pip3 vfzf cdfzf gitfzf 2>/dev/null
+  source "$DOTFILES_ROOT/shell/aliases.zsh"
+  source "$DOTFILES_ROOT/shell/prompt.zsh"
+  if [[ ${DOTFILES_SKIP_LOCAL:-0} != 1 ]]; then
+    [[ -r "$HOME/.zshrc_local" ]] && source "$HOME/.zshrc_local"
+    [[ -r "$HOME/.config/personal/zshrc.local" ]] && source "$HOME/.config/personal/zshrc.local"
+  fi
+  if [[ -n ${VIRTUAL_ENV:-} && -d "$VIRTUAL_ENV/bin" ]]; then
+    path=("$VIRTUAL_ENV/bin" $path)
+  elif [[ -n ${CONDA_PREFIX:-} && -d "$CONDA_PREFIX/bin" ]]; then
+    path=("$CONDA_PREFIX/bin" $path)
+  fi
+  dotfiles-iterm-refresh
+  return 0
+}
 
 # Keep account/host-specific setup out of the repository.
 if [[ ${DOTFILES_SKIP_LOCAL:-0} != 1 ]]; then
@@ -123,14 +133,17 @@ set_my_env() {
   [[ -n ${WIDGET:-} ]] && zle reset-prompt
   return 0
 }
+dotfiles-iterm-refresh
 # Highlighting must load after all widgets, including local customizations.
 if _dotfiles_plugin_file zsh-syntax-highlighting zsh-syntax-highlighting.zsh; then source "$REPLY"; fi
 unset REPLY
 
+_dotfiles_git_alias_check() { [[ ${aliases[gco]:-} == 'git checkout' ]]; }
+
 dotfiles-doctor() {
   local label fn missing=0
-  for label fn in completion compdef suggestions _zsh_autosuggest_start highlighting _zsh_highlight history-substring history-substring-search-up fzf-history fzf-history-widget directory-jump j; do
-    if (( $+functions[$fn] )); then print -r -- "OK $label"; else
+  for label fn in completion compdef suggestions _zsh_autosuggest_start highlighting _zsh_highlight history-substring history-substring-search-up fzf-history fzf-history-widget directory-jump j git-plugin git_current_branch git-checkout-alias _dotfiles_git_alias_check helpers marco; do
+    if (( $+functions[$fn] )) && { [[ $label != git-checkout-alias ]] || _dotfiles_git_alias_check; }; then print -r -- "OK $label"; else
       if [[ $label == fzf-history && ( ! -o zle || ! -t 0 || ! -t 1 ) ]]; then print -r -- "SKIP $label (no terminal line editor)"
       else print -r -- "MISSING $label"; (( missing += 1 )); fi
     fi

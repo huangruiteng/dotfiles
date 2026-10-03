@@ -5,3 +5,6 @@ cask "typora"
 cask "google-chrome"
 cask "the-unarchiver"
 cask "keepingyouawake"
+
+# Powerline arrows/Git glyphs in the default Meslo terminal profile.
+cask "font-meslo-lg-nerd-font"

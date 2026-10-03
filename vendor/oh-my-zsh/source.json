@@ -1,0 +1,9 @@
+{
+  "repo": "https://github.com/ohmyzsh/ohmyzsh",
+  "commit": "4d4cfc287e9d887b81242c0e431b5f49f9cec5c1",
+  "files": {
+    "git.zsh": "b135c2cae03645ed07bbefa87f03d6d1c8c6893d654b5846f8349b8ccdcfb1dc",
+    "git.plugin.zsh": "f0b60c7be7b1db7da4a264a90956b368487b8ab1050c6d7fd1feef9981a9b1ad",
+    "LICENSE.txt": "6772e603fd19666902ab7541f49f3d9e92637539fb0840605615d8c6d18fc3f6"
+  }
+}

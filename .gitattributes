@@ -1,0 +1,2 @@
+# Preserve upstream shell bytes; source.json verifies their integrity.
+vendor/oh-my-zsh/*.zsh whitespace=-blank-at-eol
