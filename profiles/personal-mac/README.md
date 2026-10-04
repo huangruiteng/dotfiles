@@ -44,4 +44,6 @@ brew bundle install --file profiles/personal-mac/Brewfile.apps --no-upgrade
 
 应用来自官方网站；包清单与 [Homebrew Bundle](https://docs.brew.sh/Brew-Bundle-and-Brewfile) 管理方式分开。记录实际版本和验收结果到新机本地，不把凭证、会话历史、进程环境或完整机器清单提交到仓库。
 
+GPT 多个个人账号默认在同一个 GPT home / 前端中离线切换：先登记 `codex app enroll a --current` 与 `codex app enroll b`，正常退出 GPT 后运行 `codex app switch b`。详见 [账号槽位、恢复与新机验收](./APP_WORKFLOW.md#app账号与-dock-切换)。不需要独立账号目录；认证只在本机登记，不从旧电脑复制。
+
 Cursor 使用本机 Veee 代理时，另按 [Cursor 与 Veee 分流](./NETWORK.md) 预览、应用、读回和回滚。该可选配置保留全局代理连接，追加常用国内网站的系统直连规则；bootstrap 不自动改网络或编辑器设置。

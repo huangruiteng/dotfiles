@@ -70,19 +70,14 @@ class AppTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             m.settings(self.home)
 
-    def test_account_isolated_without_copying_auth(self):
+    def test_init_has_one_gpt_home_and_preserves_existing_login(self):
         self.initialize()
         gpt = m.route(self.home, 'gpt')
         (gpt['home'] / 'auth.json').write_text('private-test-cache')
-        m.prepare(self.home, 'gpt', 'a', True)
-        account = m.route(self.home, 'gpt', 'a')
-        self.assertNotEqual(account['home'], gpt['home'])
-        self.assertTrue((account['home'] / 'config.toml').exists())
-        self.assertFalse((account['home'] / 'auth.json').exists())
-        with self.assertRaises(ValueError):
-            m.route(self.home, 'gpt', '../escape')
-        with self.assertRaises(ValueError):
-            m.route(self.home, 'ds', 'a')
+        m.prepare(self.home, apply=True)
+        self.assertEqual(m.route(self.home, 'gpt')['home'], gpt['home'])
+        self.assertEqual((gpt['home'] / 'auth.json').read_text(), 'private-test-cache')
+        self.assertEqual(list(self.home.glob('.codex-gpt-account-*')), [])
 
     def test_environment_removes_session_and_api_overrides(self):
         with patch.dict(os.environ, {'CODEX_HOME': '/old', 'CODEX_THREAD_ID': 'old',
@@ -239,7 +234,9 @@ class AppTests(unittest.TestCase):
         command = f'''DOTFILES_ROOT={json.dumps(str(ROOT))}; source "$DOTFILES_ROOT/shell/apps.zsh"
 _dotfiles_apps() {{ printf '<%s>\\n' "$@"; }}
 codex ds app --dry-run
-codex app --account a
+codex app switch a --local --no-launch
+codex app enroll b
+codex app accounts
 codex ds exec 'two words'
 loopx app
 ego lite app
@@ -247,7 +244,9 @@ typora app 'note with spaces.md'
 '''
         r = subprocess.run(['/bin/zsh', '-c', command], text=True, capture_output=True, check=True)
         self.assertIn('<open>\n<ds>\n<--dry-run>', r.stdout)
-        self.assertIn('<open>\n<gpt>\n<--account>\n<a>', r.stdout)
+        self.assertIn('<accounts>\n<switch>\n<a>\n<--local>\n<--no-launch>', r.stdout)
+        self.assertIn('<accounts>\n<enroll>\n<b>', r.stdout)
+        self.assertIn('<accounts>\n<status>', r.stdout)
         self.assertIn('<cli>\n<ds>\n<-->\n<exec>\n<two words>', r.stdout)
         self.assertIn('<open>\n<ego>', r.stdout)
         self.assertIn('<note with spaces.md>', r.stdout)
@@ -272,11 +271,11 @@ codex secondary app
         self.assertIn('native:<--version>', r.stdout)
         self.assertIn('native:<--format>\nnative:<json>\nnative:<doctor>', r.stdout)
 
-    def test_cli_account_label_parser(self):
+    def test_cli_fixed_home_parser(self):
         with patch.object(m, 'cli') as call, patch.object(m.sys, 'argv',
-                ['personal-apps', 'cli', '--account', 'a', 'gpt', '--', 'exec', 'two words']):
+                ['personal-apps', 'cli', 'gpt', '--', 'exec', 'two words']):
             self.assertEqual(m.main(), 0)
-        self.assertEqual(call.call_args.args[1:], ('gpt', ['exec', 'two words'], 'a'))
+        self.assertEqual(call.call_args.args[1:], ('gpt', ['exec', 'two words']))
 
     def test_installed_symlink_entry_and_receipt_rollback(self):
         r = subprocess.run([m.sys.executable, str(ROOT / 'tools/install.py'), '--home', str(self.home),

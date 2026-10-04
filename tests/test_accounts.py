@@ -1,0 +1,336 @@
+"""Synthetic login caches only; never load a developer's real accounts."""
+import base64
+import contextlib
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import Mock, patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tools'))
+import personal_accounts as accounts
+import personal_apps as apps
+
+
+def fake_login(subject, rotation='initial'):
+    claims = base64.urlsafe_b64encode(json.dumps({'sub': 'synthetic-' + subject}).encode()).decode().rstrip('=')
+    return accounts.encoded({'auth_mode': 'chatgpt', 'tokens': {
+        'id_token': 'synthetic.' + claims + '.not-a-signature',
+        'access_token': 'synthetic-access-' + rotation,
+        'refresh_token': 'synthetic-refresh-' + rotation, 'account_id': 'synthetic-personal'}})
+
+
+class AccountTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.home = Path(temp.name).resolve() / 'home with spaces'
+        self.home.mkdir()
+        apps.prepare(self.home, apply=True)
+        self.spec = apps.route(self.home, 'gpt')
+        self.idle = Mock()
+        self.manager = accounts.Accounts(self.home, self.spec, self.idle,
+                                         lambda: '/synthetic/bin/codex', apps.clean_env)
+        self.a, self.b = fake_login('a'), fake_login('b')
+        accounts.atomic(self.manager.auth, self.a)
+
+    def current(self):
+        return self.manager.enroll('a', current=True)
+
+    def enroll_b(self):
+        def login(cmd, env):
+            self.assertEqual(cmd, ['/synthetic/bin/codex', 'login'])
+            stage = Path(env['CODEX_HOME'])
+            self.assertNotEqual(stage, self.spec['home'])
+            self.assertEqual((stage / 'config.toml').read_text(),
+                             'cli_auth_credentials_store="file"\nforced_login_method="chatgpt"\n')
+            accounts.atomic(stage / 'auth.json', self.b)
+            return subprocess.CompletedProcess(cmd, 0)
+        with patch.object(accounts.subprocess, 'run', side_effect=login):
+            return self.manager.enroll('b')
+
+    def ready(self):
+        self.current()
+        self.enroll_b()
+
+    def test_readonly_status_creates_nothing_and_prints_no_identity(self):
+        result = self.manager.status()
+        self.assertFalse(self.manager.root.exists())
+        self.assertEqual(result['slots'], [])
+        self.assertFalse(result['live_authentication_verified'])
+        self.assertNotIn('synthetic-access', json.dumps(result))
+        self.assertNotIn('synthetic-a', json.dumps(result))
+
+    def test_current_registration_preserves_auth_model_and_comments(self):
+        self.manager.config.write_text('# kept\nmodel="gpt-example"\nmodel_provider="openai"\n[mcp_servers.demo]\ncommand="demo"\n')
+        result = self.current()
+        self.assertTrue(result['activated'])
+        self.assertEqual(self.manager.auth.read_bytes(), self.a)
+        self.assertIn('# kept\nmodel="gpt-example"', self.manager.config.read_text())
+        self.assertEqual(self.manager.status()['active_slot'], 'a')
+        for path in self.manager.root.rglob('*'):
+            self.assertEqual(path.stat().st_mode & 0o777, 0o700 if path.is_dir() else 0o600)
+
+    def test_native_enrollment_does_not_select_or_change_current_login(self):
+        self.current()
+        result = self.enroll_b()
+        self.assertFalse(result['activated'])
+        self.assertEqual(self.manager.auth.read_bytes(), self.a)
+        self.assertEqual(self.manager.status()['active_slot'], 'a')
+        self.assertEqual(list((self.manager.root / 'login-staging').iterdir()), [])
+
+    def test_switch_preserves_real_sqlite_rollout_and_one_route(self):
+        self.ready()
+        db = self.spec['home'] / 'state_5.sqlite'
+        with sqlite3.connect(db) as conn:
+            conn.execute('create table example (title text)')
+            conn.execute('insert into example values (?)', ('synthetic history',))
+        conn.close()
+        rollout = self.spec['home'] / 'sessions/example.jsonl'
+        rollout.parent.mkdir()
+        rollout.write_text('synthetic immutable history\n')
+        before = {p: p.read_bytes() for p in (db, rollout)}
+        result = self.manager.switch('b')
+        self.assertEqual(result['home'], str(self.spec['home']))
+        self.assertEqual(result['frontend'], str(self.spec['frontend']))
+        self.assertEqual(self.manager.auth.read_bytes(), self.b)
+        self.assertEqual(self.manager.status()['active_slot'], 'b')
+        self.assertEqual({p: p.read_bytes() for p in before}, before)
+        self.assertEqual(list(self.home.glob('.codex-gpt-account-*')), [])
+
+    def test_rotated_credentials_saved_before_leaving_and_reused_on_return(self):
+        self.ready()
+        rotated = fake_login('a', 'rotated')
+        accounts.atomic(self.manager.auth, rotated)
+        self.manager.switch('b')
+        self.assertEqual(self.manager.slot('a').read_bytes(), rotated)
+        self.manager.switch('a')
+        self.assertEqual(self.manager.auth.read_bytes(), rotated)
+
+    def test_selecting_current_slot_never_restores_older_refresh_token(self):
+        self.current()
+        rotated = fake_login('a', 'newer')
+        accounts.atomic(self.manager.auth, rotated)
+        self.manager.switch('a')
+        self.assertEqual(self.manager.auth.read_bytes(), rotated)
+        self.assertEqual(self.manager.slot('a').read_bytes(), rotated)
+
+    def test_dry_run_changes_no_cache_journal_or_history(self):
+        self.ready()
+        before = {p: p.read_bytes() for p in self.home.rglob('*') if p.is_file()}
+        result = self.manager.switch('b', dry_run=True)
+        self.assertTrue(result['preview'])
+        self.assertEqual({p: p.read_bytes() for p in before}, before)
+
+    def test_unknown_slot_and_untracked_current_login_rejected(self):
+        with self.assertRaises(ValueError):
+            self.manager.switch('missing')
+        self.enroll_b()
+        with self.assertRaisesRegex(ValueError, 'current GPT login first'):
+            self.manager.switch('b')
+        self.assertEqual(self.manager.auth.read_bytes(), self.a)
+
+    def test_blank_home_can_select_first_official_enrollment(self):
+        self.manager.auth.unlink()
+        self.enroll_b()
+        self.manager.switch('b')
+        self.assertEqual(self.manager.auth.read_bytes(), self.b)
+
+    def test_duplicate_account_and_slot_never_overwritten(self):
+        self.current()
+        with self.assertRaises(ValueError):
+            self.manager.enroll('a', current=True)
+        with self.assertRaisesRegex(ValueError, 'already registered'):
+            self.manager.enroll('alias', current=True)
+        self.assertFalse(self.manager.slot('alias').exists())
+
+    def test_external_login_change_cannot_overwrite_saved_slot(self):
+        self.ready()
+        accounts.atomic(self.manager.auth, fake_login('different'))
+        with self.assertRaisesRegex(ValueError, 'changed outside'):
+            self.manager.switch('b')
+        self.assertEqual(self.manager.slot('a').read_bytes(), self.a)
+        with self.assertRaises(ValueError):
+            apps.account_preflight(self.home, self.spec)
+
+    def test_active_owner_refusal_has_no_vault_side_effects(self):
+        self.idle.side_effect = ValueError('synthetic running process')
+        with self.assertRaises(ValueError):
+            self.current()
+        self.assertFalse(self.manager.root.exists())
+
+    def test_failed_login_preserves_current_route(self):
+        with patch.object(accounts.subprocess, 'run', return_value=subprocess.CompletedProcess(['codex'], 1)):
+            with self.assertRaisesRegex(ValueError, 'did not complete'):
+                self.manager.enroll('b')
+        self.assertEqual(self.manager.auth.read_bytes(), self.a)
+        self.assertFalse(self.manager.slot('b').exists())
+
+    def test_failed_write_rolls_back_without_unsettled_journal(self):
+        self.ready()
+        original = accounts.atomic
+        failed = False
+        def failing(path, raw):
+            nonlocal failed
+            if path == self.manager.auth and raw == self.b and not failed:
+                failed = True
+                raise OSError('synthetic storage failure')
+            return original(path, raw)
+        with patch.object(accounts, 'atomic', side_effect=failing):
+            with self.assertRaises(OSError):
+                self.manager.switch('b')
+        self.assertEqual(self.manager.auth.read_bytes(), self.a)
+        self.assertEqual(self.manager.status()['active_slot'], 'a')
+        self.assertFalse(self.manager.pending.exists())
+
+    def test_completed_operation_rollback_and_interrupted_recovery(self):
+        self.ready()
+        self.manager.switch('b')
+        self.manager.recover(rollback=True)
+        self.assertEqual(self.manager.auth.read_bytes(), self.a)
+        self.manager.switch('b')
+        journal = (self.manager.root / 'last.json').read_bytes()
+        accounts.atomic(self.manager.pending, journal)  # Simulate a crash before journal removal.
+        with self.assertRaisesRegex(ValueError, 'Interrupted'):
+            apps.account_preflight(self.home, self.spec)
+        self.manager.recover()
+        self.assertEqual(self.manager.auth.read_bytes(), self.a)
+        self.assertFalse(self.manager.pending.exists())
+
+    def test_rollback_cannot_overwrite_later_user_changes(self):
+        self.ready()
+        self.manager.switch('b')
+        self.manager.config.write_text(self.manager.config.read_text() + '# personal edit\n')
+        with self.assertRaisesRegex(ValueError, 'Recovery rejected'):
+            self.manager.recover(rollback=True)
+        self.assertEqual(self.manager.auth.read_bytes(), self.b)
+
+    def test_tampered_backup_and_journal_escape_rejected_before_restore(self):
+        self.ready()
+        result = self.manager.switch('b')
+        journal = json.loads((self.manager.root / 'last.json').read_text())
+        journal['files'][-1]['key'] = 'slot:../../escape'
+        accounts.atomic(self.manager.pending, accounts.encoded(journal))
+        with self.assertRaises(ValueError):
+            self.manager.recover()
+        self.assertEqual(self.manager.auth.read_bytes(), self.b)
+        journal = json.loads((self.manager.root / 'last.json').read_text())
+        accounts.atomic(self.manager.pending, accounts.encoded(journal))
+        accounts.atomic(Path(result['backup']) / '0', b'synthetic-tamper')
+        with self.assertRaises(ValueError):
+            self.manager.recover()
+        self.assertEqual(self.manager.auth.read_bytes(), self.b)
+
+    def test_slot_symlink_and_public_cache_permissions_rejected(self):
+        self.ready()
+        path = self.manager.slot('b')
+        path.unlink()
+        path.symlink_to(self.manager.auth)
+        with self.assertRaises(ValueError):
+            self.manager.switch('b')
+        path.unlink()
+        self.manager.auth.chmod(0o644)
+        with self.assertRaises(ValueError):
+            self.manager.selected()
+        for bad in ('../a', 'A', 'a/b', ''):
+            with self.assertRaises(ValueError):
+                self.manager.slot(bad)
+
+    def test_vault_route_change_rejected_even_before_first_activation(self):
+        self.enroll_b()
+        changed = dict(self.spec, frontend=self.home / 'different frontend')
+        with self.assertRaisesRegex(ValueError, 'different GPT route'):
+            accounts.Accounts(self.home, changed, self.idle, None, None)
+
+    def test_api_key_invalid_cache_and_explicit_keyring_are_not_converted(self):
+        for raw in (b'{"OPENAI_API_KEY":"synthetic-secret"}', b'{broken-synthetic-secret', b'[]'):
+            with self.assertRaises(ValueError) as error:
+                accounts.identity(raw)
+            self.assertNotIn('synthetic-secret', str(error.exception))
+        for store in ('keyring', 'ephemeral'):
+            with self.assertRaises(ValueError):
+                accounts.file_config(f'cli_auth_credentials_store="{store}"\n'.encode())
+
+    def test_optional_null_workspace_id_has_stable_identity(self):
+        value = json.loads(self.a)
+        value['tokens']['account_id'] = None
+        null_identity = accounts.identity(accounts.encoded(value))
+        del value['tokens']['account_id']
+        self.assertEqual(accounts.identity(accounts.encoded(value)), null_identity)
+
+    def test_real_open_sqlite_owner_is_detected_without_reading_it(self):
+        if sys.platform != 'darwin':
+            self.skipTest('macOS lsof ownership guard')
+        conn = sqlite3.connect(self.spec['home'] / 'state_5.sqlite')
+        self.addCleanup(conn.close)
+        conn.execute('create table example (n int)')
+        with patch.object(apps, 'app_bundle'), patch.object(apps, 'executable'), patch.object(apps, 'running', return_value=None):
+            with self.assertRaisesRegex(ValueError, 'App/CLI process'):
+                apps.account_idle(self.home, self.spec)
+
+    def test_cooperating_cli_lease_blocks_switch_but_not_other_cli(self):
+        self.ready()
+        with accounts.credential_lock(self.home, shared=True):
+            with accounts.credential_lock(self.home, shared=True):
+                with self.assertRaises(BlockingIOError):
+                    self.manager.switch('b')
+        self.assertEqual(self.manager.auth.read_bytes(), self.a)
+
+    def test_routed_cli_holds_inheritable_credential_lease_during_exec(self):
+        def execute(*args):
+            with self.assertRaises(BlockingIOError):
+                with accounts.credential_lock(self.home):
+                    pass
+        with patch.object(apps.shutil, 'which', return_value='/synthetic/bin/codex'), patch.object(apps.os, 'execvpe', side_effect=execute), patch.object(apps.os, 'set_inheritable', wraps=apps.os.set_inheritable) as inherit:
+            apps.cli(self.home, 'gpt', ['--version'])
+        self.assertTrue(inherit.call_args.args[1])
+
+    def test_real_exec_retains_shared_lease_until_cli_exits(self):
+        binary = self.home / 'bin/codex'
+        binary.parent.mkdir()
+        binary.write_text('#!/bin/sh\nprintf "synthetic-ready\\n"\nread answer\n')
+        binary.chmod(0o755)
+        env = dict(os.environ, PATH=str(binary.parent) + os.pathsep + os.environ['PATH'])
+        code = ('import sys; from pathlib import Path; '
+                'sys.path.insert(0, sys.argv[1]); import personal_apps; '
+                'personal_apps.cli(Path(sys.argv[2]), "gpt", ["exec"])')
+        with subprocess.Popen([sys.executable, '-c', code, str(ROOT / 'tools'), str(self.home)],
+                              env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True) as child:
+            self.assertEqual(child.stdout.readline().strip(), 'synthetic-ready')
+            with self.assertRaises(BlockingIOError):
+                with accounts.credential_lock(self.home):
+                    pass
+            child.communicate('done\n', timeout=5)
+            self.assertEqual(child.returncode, 0)
+        with accounts.credential_lock(self.home):
+            pass
+
+    def test_app_cli_backend_ownership_checks(self):
+        with patch.object(apps, 'app_bundle'), patch.object(apps, 'executable'), patch.object(apps, 'running', return_value=42):
+            with self.assertRaisesRegex(ValueError, 'Quit the GPT'):
+                apps.account_idle(self.home, self.spec)
+        with patch.object(apps, 'app_bundle'), patch.object(apps, 'executable'), patch.object(apps, 'running', return_value=None), patch.object(apps.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='77\n')):
+            with self.assertRaisesRegex(ValueError, 'App/CLI process'):
+                apps.account_idle(self.home, self.spec)
+
+    def test_cli_parser_local_switch_and_launch_failure_reports_commit(self):
+        with patch.object(apps, 'account_command', return_value={'slot':'a'} ) as call, patch.object(sys, 'argv', ['personal-apps','accounts','switch','a','--local','--no-launch']), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(apps.main(), 0)
+            self.assertTrue(call.call_args.args[1].no_launch)
+        args = type('Args', (), {'account_action':'switch','slot':'b','dry_run':False,'no_launch':False})()
+        with patch.object(apps, 'account_idle'), patch.object(accounts.Accounts, 'switch', return_value={'slot':'b','history_untouched':True}), patch.object(apps, 'open_app', side_effect=ValueError('synthetic launch failure')):
+            result = apps.account_command(self.home, args)
+        self.assertTrue(result['launch_failed'])
+        self.assertEqual(result['slot'], 'b')
+
+
+if __name__ == '__main__':
+    unittest.main()

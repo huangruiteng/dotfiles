@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable macOS App routes. No account/session migration or bundle patching."""
+"""Portable macOS App routes and local account slots; no history migration."""
 import argparse
 import fcntl
 import json
@@ -54,22 +54,8 @@ def settings(home):
     return result
 
 
-def route(home, role, account=None):
-    spec = dict(settings(home)[role])
-    if account:
-        if role != 'gpt' or not re.fullmatch(r'[a-z][a-z0-9-]{0,23}', account):
-            raise ValueError('Account labels are GPT-only: lowercase letters, digits and hyphens')
-        # Each optional account owns a fresh home; credentials are never copied.
-        spec['home'] = managed_path(str(spec['home']) + '-account-' + account, home)
-        spec['frontend'] = managed_path(str(spec['frontend']) + '-account-' + account, home)
-        others = settings(home)
-        for other in others.values():
-            for key in ('home', 'frontend'):
-                if key in other and any(overlaps(spec[k], other[key]) for k in ('home', 'frontend')):
-                    raise ValueError('Account state overlaps another App route')
-        if overlaps(spec['home'], spec['frontend']):
-            raise ValueError('Account home overlaps its frontend')
-    return spec
+def route(home, role):
+    return dict(settings(home)[role])
 
 
 def app_bundle(spec, role, home):
@@ -204,19 +190,20 @@ def check_provider(spec, role):
             raise ValueError('DS model is absent from the local catalog; refresh the public metadata')
 
 
-def prepare(home, role=None, account=None, apply=False):
+def prepare(home, apply=False):
     cfg = home / '.config/personal/apps.json'
     files = []
     if not cfg.exists():
         files.append((cfg, (ROOT / 'profiles/personal-mac/apps.example.json').read_text()))
-    for name in ((role,) if role else ('gpt', 'ds')):
-        spec = route(home, name, account)
+    for name in ('gpt', 'ds'):
+        spec = route(home, name)
         path = spec['home'] / 'config.toml'
         managed_path(path, home)
         if path.exists():
             continue  # Existing settings/auth/state are never overwritten.
         if name == 'gpt':
-            content = '# Fresh native profile. Choose the model in the App.\nmodel_provider = "openai"\n'
+            content = ('# Fresh native profile. Choose the model in the App.\nmodel_provider = "openai"\n'
+                       'cli_auth_credentials_store = "file"\nforced_login_method = "chatgpt"\n')
         else:
             content = (ROOT / 'profiles/personal-mac/codex-ds.example.toml').read_text()
             content = content.replace('"@CATALOG@"', json.dumps(str(spec['home'] / 'models.json')))
@@ -258,8 +245,8 @@ def running(exe, spec):
     return owners(exe, spec['frontend'], ps)
 
 
-def open_app(home, role, files, account=None, dry_run=False):
-    spec = route(home, role, account)
+def open_app(home, role, files, dry_run=False):
+    spec = route(home, role)
     bundle = app_bundle(spec, role, home)
     if role not in ('gpt', 'ds'):
         if files and role != 'typora':
@@ -273,6 +260,8 @@ def open_app(home, role, files, account=None, dry_run=False):
         raise ValueError('Codex routes accept no workspace argument yet; select the project inside the App')
     exe = executable(bundle)
     check_provider(spec, role)
+    if role == 'gpt':
+        account_preflight(home, spec)
     pid = running(exe, spec)
     result = {'action': 'focus' if pid else 'launch', 'role': role,
               'home': str(spec['home']), 'frontend': str(spec['frontend']), 'pid': pid}
@@ -283,6 +272,8 @@ def open_app(home, role, files, account=None, dry_run=False):
     lock_path = managed_path(lock_dir / 'launch.lock', home)
     with open(lock_path, 'a', opener=lambda p, flags: os.open(p, flags, 0o600)) as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if role == 'gpt':
+            account_preflight(home, spec)
         pid = running(exe, spec)
         if pid:
             subprocess.run(['/usr/bin/osascript', '-l', 'JavaScript', '-', str(pid)],
@@ -307,14 +298,80 @@ def open_app(home, role, files, account=None, dry_run=False):
         raise ValueError('App ownership was not confirmed within five seconds; inspect before retrying')
 
 
-def cli(home, role, args, account=None):
-    spec = route(home, role, account)
+def cli(home, role, args):
+    spec = route(home, role)
     check_provider(spec, role)
+    if role == 'gpt':
+        account_preflight(home, spec)
     env = clean_env(spec, home)
     binary = shutil.which('codex', path=env['PATH'])
     if not binary:
         raise ValueError('Install the official Codex CLI first')
-    os.execvpe(binary, [binary, *args], env)
+    if role == 'gpt':
+        from personal_accounts import credential_lock
+        with credential_lock(home, shared=True) as lease:
+            account_preflight(home, spec)
+            # Keep the shared lease across exec for this routed CLI's lifetime.
+            os.set_inheritable(lease.fileno(), True)
+            os.execvpe(binary, [binary, *args], env)
+    else:
+        os.execvpe(binary, [binary, *args], env)
+
+
+def account_preflight(home, spec):
+    vault = managed_path(home / '.local/state/personal-apps/gpt-accounts', home)
+    if not vault.exists():
+        return
+    from personal_accounts import Accounts
+    manager = Accounts(home, spec, None, None, None)
+    if manager.pending.exists():
+        raise ValueError('Interrupted account operation; run codex app recover with GPT closed')
+    if manager.state():
+        manager.selected()  # Compare identity only; refreshed tokens may differ.
+
+
+def account_idle(home, spec):
+    """Never kill tasks; include backend/CLI ownership of the GPT home."""
+    exe = executable(app_bundle(spec, 'gpt', home))
+    if running(exe, spec):
+        raise ValueError('Quit the GPT App normally before switching; DS can remain open')
+    if spec['home'].exists():
+        result = subprocess.run(['/usr/sbin/lsof', '-t', '+d', str(spec['home'])],
+                                capture_output=True, text=True, timeout=10)
+        if result.returncode not in (0, 1):
+            raise ValueError('Cannot verify GPT home ownership; no account was changed')
+        if result.stdout.strip():
+            raise ValueError('GPT home is still open by an App/CLI process; close it before switching')
+
+
+def account_command(home, args):
+    from personal_accounts import Accounts
+    spec = route(home, 'gpt')
+    if args.account_action not in ('recover', 'rollback'):
+        check_provider(spec, 'gpt')
+    def login_cli():
+        binary = shutil.which('codex', path=clean_env(spec, home)['PATH'])
+        if not binary:
+            raise ValueError('Install the official Codex CLI before enrolling accounts')
+        return binary
+    manager = Accounts(home, spec, lambda: account_idle(home, spec), login_cli,
+                       lambda selected: clean_env(selected, home))
+    if args.account_action == 'status':
+        return manager.status()
+    if sys.platform != 'darwin':
+        raise ValueError('Personal App account commands support macOS only')
+    if args.account_action == 'enroll':
+        return manager.enroll(args.slot, args.current)
+    if args.account_action in ('recover', 'rollback'):
+        return manager.recover(args.account_action == 'rollback')
+    result = manager.switch(args.slot, args.dry_run)
+    if not args.no_launch and not args.dry_run:
+        try:
+            result['app'] = open_app(home, 'gpt', [])
+        except (OSError, ValueError, subprocess.SubprocessError):
+            # Selection has committed; report a launch failure without repeating it.
+            result.update(launch_failed=True, next_action='Account selected; retry codex app or inspect codex app rollback with GPT closed')
+    return result
 
 
 def status(home):
@@ -331,6 +388,8 @@ def status(home):
                 row['pid'] = running(executable(bundle), spec)
                 try:
                     check_provider(spec, role)
+                    if role == 'gpt':
+                        account_preflight(home, spec)
                     row['config_ready'] = True
                 except ValueError as exc:
                     row.update(config_ready=False, next_action=str(exc))
@@ -348,21 +407,31 @@ def main():
     shortcut.add_argument('--apply', action='store_true')
     init = sub.add_parser('init', help='Preview fresh local settings; preserve existing files')
     init.add_argument('--apply', action='store_true')
-    init.add_argument('--account', help='Optional GPT account label; gets its own fresh state')
     launch = sub.add_parser('open', help='Focus one running Codex route or request an App launch')
     launch.add_argument('role', choices=ROLES)
     launch.add_argument('--dry-run', action='store_true')
-    launch.add_argument('--account')
     launch.add_argument('files', nargs='*')
     native = sub.add_parser('cli', help='Invoke the installed native CLI with one isolated home')
     native.add_argument('role', choices=('gpt', 'ds'))
-    native.add_argument('--account')
     native.add_argument('args', nargs=argparse.REMAINDER)
+    account = sub.add_parser('accounts', help='Local ChatGPT slots sharing the existing GPT home/frontend')
+    commands = account.add_subparsers(dest='account_action', required=True)
+    commands.add_parser('status', help='List slot labels, never tokens or account identities')
+    enroll = commands.add_parser('enroll', help='Enroll through official login; never overwrite a slot')
+    enroll.add_argument('slot')
+    enroll.add_argument('--current', action='store_true', help='Register this machine GPT route existing login')
+    switch = commands.add_parser('switch', help='Offline switch, then reopen the same GPT route')
+    switch.add_argument('slot')
+    switch.add_argument('--local', action='store_true', help='Local-only (also the default); no remote synchronization')
+    switch.add_argument('--no-launch', action='store_true')
+    switch.add_argument('--dry-run', action='store_true')
+    commands.add_parser('recover', help='Restore an interrupted account transaction with GPT closed')
+    commands.add_parser('rollback', help='Undo the most recent account operation if its files are unchanged')
     args = parser.parse_args()
     try:
         home = Path.home().resolve()
         if args.action == 'init':
-            result = prepare(home, 'gpt' if args.account else None, args.account, args.apply)
+            result = prepare(home, args.apply)
         elif args.action == 'shortcuts':
             if sys.platform != 'darwin':
                 raise ValueError('App shortcuts support macOS only')
@@ -370,15 +439,17 @@ def main():
         elif args.action == 'open':
             if sys.platform != 'darwin':
                 raise ValueError('App launching supports macOS only')
-            result = open_app(home, args.role, args.files, args.account, args.dry_run)
+            result = open_app(home, args.role, args.files, args.dry_run)
         elif args.action == 'cli':
             tail = args.args[1:] if args.args[:1] == ['--'] else args.args
-            cli(home, args.role, tail, args.account)
+            cli(home, args.role, tail)
             return 0
+        elif args.action == 'accounts':
+            result = account_command(home, args)
         else:
             result = status(home)
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0
+        return 1 if result.get('launch_failed') else 0
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
         # subprocess exceptions can contain captured output or argv; never render them.
         message = str(exc) if isinstance(exc, ValueError) else 'App command failed; inspect local installation and settings'

@@ -36,6 +36,9 @@ personal-apps status
 | 命令 | 行为 |
 | --- | --- |
 | `codex app` | 打开 GPT 独立窗口，已运行则按 PID 恢复并聚焦 |
+| `codex app switch a` | 正常退出 GPT 后切到本机槽位 A，再打开同一个 GPT 路由 |
+| `codex app enroll a --current` / `codex app enroll b` | 登记当前个人机登录 / 通过官方 CLI 在本机登记另一账号 |
+| `codex app accounts` | 只读槽位、当前选择和待恢复状态 |
 | `codex ds app` | 打开 DS 独立窗口，不改写 GPT 配置 |
 | `codex …` / `cxgpt …` / `cxa …` | 原生 CLI 参数透传，使用 GPT home |
 | `codex ds …` / `cxds …` | 原生 CLI 参数透传，使用 DS home |
@@ -72,15 +75,41 @@ DS 按 [官方 Codex 集成说明](https://api-docs.deepseek.com/quick_start/age
 
 ## App、账号与 Dock 切换
 
-GPT / DS 切换用两个 `… app` 命令。确有多个个人 OpenAI 账号时可增加标签：
+GPT / DS 切换用两个 `… app` 命令。GPT 的多个个人 ChatGPT 账号默认共享**一个 GPT home、一个前端目录**；换账号不新建账号专用 home，也不移动 SQLite、rollout 或历史。模型在 App 中选择；DS 仍有自己的 home，不属于 GPT 账号槽位。
+
+首次登记：先正常退出 GPT App，以及使用 GPT home 的 CLI / App Server；DS 可继续运行。如果当前个人机的 GPT 路由已登录，用 `--current` 保存它。另一个账号通过官方 `codex login` 在本机临时登录目录登记，不改变当前账号：
 
 ```sh
-personal-apps init --account a
-personal-apps init --account a --apply
-codex app --account a
+codex app enroll a --current
+codex app enroll b
+codex app accounts
 ```
 
-标签拥有独立 GPT home 与前端，首次在该窗口登录，之后同命令聚焦。CLI 用 `personal-apps cli --account a gpt -- …`。标签限小写字母、数字与连字符；每账号历史独立，不在共享历史上换 token，不导入旧机槽位或认证。不需要多账号则保持一个 GPT 路由。
+`--current` 只读取新机配置所指定 GPT home 的登录，不读取旧电脑或其它 home。没有现成登录时，直接 `codex app enroll a`，在官方浏览器流程完成账号 A 登录，再选择 A。槽位标签限小写字母、数字和连字符，不接受邮箱；同一账号和已有槽位不会被重复覆盖。启用时只将两项认证设置明确为 ChatGPT + file storage，保留模型及其它配置；显式 keyring/ephemeral、自定义 provider 或复杂 profiles 配置需本人先审查，脚本不强制转换。
+
+日常切换与预览：
+
+```sh
+# 先在 GPT 中停止/完成请求，正常退出 App 与使用该 home 的 CLI。
+codex app switch b --dry-run
+codex app switch b                 # 本机切到 B，并重新打开同一个 GPT 路由
+codex app switch a --local         # --local 可省略；始终不做远端同步
+codex app switch a --no-launch     # 只完成离线选择，随后 codex app 打开
+```
+
+以上是 dotfiles 自定义命令；对应跨 shell 命令为 `personal-apps accounts enroll …`、`personal-apps accounts switch …` 和 `personal-apps accounts status`。不会安装或调用旧机的 `codex-official`。OpenAI 原生登录及 file/keyring 存储语义见 [官方认证说明](https://learn.chatgpt.com/docs/auth)；槽位管理、离线文件事务和 App 重开属于本仓库集成。
+
+离开当前账号前保存它在最近使用中刷新后的缓存，再原子写入目标登录、两项认证设置和选择记录。状态与恢复快照仅在 `~/.local/state/personal-apps/gpt-accounts/`，目录 700、文件 600，不打印 token、邮箱或账号标识，不进入 Git 或交接压缩包。认证由官方 Codex 验证和刷新，槽位登记/脚本成功不等于账号当前仍可用。本地历史保留，云端资源和账号额度仍由实际登录账号决定。
+
+切换检查目标前端进程与 GPT home 的打开文件，使用与 App 启动相同的协作锁，再于写入前复查；路由 CLI 持有可跨 exec 的共享认证锁，多个 CLI 可同时运行，但切换器须等它们退出。发现占用就拒绝，不强杀进程。这不能阻止其它不遵守锁的程序在检查后直接启动，所以切换期间不要从 Finder、原生 CLI 或其它脚本打开 GPT。App 启动失败会明确报告“账号已选中、启动失败”，退出非零；先 `codex app accounts` 回读，不重复登记。重试 `codex app`，或在文件仍未变化时撤销最近一次账号操作：
+
+```sh
+codex app rollback
+```
+
+进程中断后存在 pending journal 时，GPT 开窗/CLI 会拒绝写入，正常关闭 GPT 后用 `codex app recover` 恢复。恢复和回滚先核对全部快照、目标路径和当前文件哈希；不覆盖之后的个人编辑或新刷新的认证。已经继续使用账号时，通常正常 `switch` 回去；不要强行恢复旧 refresh token。账号需重新认证时，在当前选定 GPT home 运行 `codex login`，完成同一账号的官方登录，之后再打开 App。若在 App 里换了另一个账号，身份检查会拒绝覆盖槽位，先审查，不猜测归属。
+
+旧版 `init/open/cli --account` 的独立目录入口已移除；已有 `*-account-*` 目录不会被删除、导入或合并。新机 Astra 升级时先检查 Git 改动并记录审查的 commit，更新公开源码与 shell 链接，打开新终端；在本机重新登记槽位。完成一次 A → B → A 的真实请求，核对 App 账号、同一 home/前端、本地任务保留、DS 未变、重复聚焦和恢复入口。仓库的合成认证测试不能替代该新机 GUI 验收；Astra 不导出认证、账号详情或会话来写报告。
 
 Finder / Dock 的轻量入口可预览再创建：
 
@@ -105,4 +134,4 @@ personal-apps shortcuts --apply
 
 链接按 bootstrap receipt 回滚，源码更新审查 Git diff。init 不覆盖旧文件，预览列出新增路径；撤销时关闭 App，仅审查并移除本次新建且未承载使用数据的配置。一旦登录或产生会话，保留整个 home，不自动清场。新 Finder launcher 可关闭后移到废纸篓，不删除厂商 App 或历史。
 
-旧账号切换器、CC Switch 数据库、远端同步、硬编码版本回滚、会话迁移和 codex secondary 不在此 profile 范围。设备账号、密钥、登录 profile、App 数据、registry 和完整机器报告只留新机本地。
+旧机账号槽位与切换器、CC Switch 数据库、远端同步、硬编码版本回滚、会话迁移和 codex secondary 不在此 profile 范围。此处新建的本机槽位、密钥、登录 profile、App 数据、registry 和完整机器报告只留新机本地。
