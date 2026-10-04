@@ -77,7 +77,7 @@ DS 按 [官方 Codex 集成说明](https://api-docs.deepseek.com/quick_start/age
 
 GPT / DS 切换用两个 `… app` 命令。GPT 的多个个人 ChatGPT 账号默认共享**一个 GPT home、一个前端目录**；换账号不新建账号专用 home，也不移动 SQLite、rollout 或历史。模型在 App 中选择；DS 仍有自己的 home，不属于 GPT 账号槽位。
 
-首次登记：先正常退出 GPT App，以及使用 GPT home 的 CLI / App Server；DS 可继续运行。如果当前个人机的 GPT 路由已登录，用 `--current` 保存它。另一个账号通过官方 `codex login` 在本机临时登录目录登记，不改变当前账号：
+新账号可在 GPT App / CLI 仍运行时登记：`codex app enroll b` 通过官方 `codex login` 在临时目录登录，只新增槽位，不改当前认证、配置或切换恢复快照。保存当前账号（`--current`）和真正切换仍须先正常退出使用该 GPT home 的 App / CLI / App Server；独立 home 的作业和 DS 可继续运行。推荐在关闭 GPT 后保存当前账号，再切到已登记的新账号：
 
 ```sh
 codex app enroll a --current
@@ -101,7 +101,7 @@ codex app switch a --no-launch     # 只完成离线选择，随后 codex app �
 
 离开当前账号前保存它在最近使用中刷新后的缓存，再原子写入目标登录、两项认证设置和选择记录。状态与恢复快照仅在 `~/.local/state/personal-apps/gpt-accounts/`，目录 700、文件 600，不打印 token、邮箱或账号标识，不进入 Git 或交接压缩包。认证由官方 Codex 验证和刷新，槽位登记/脚本成功不等于账号当前仍可用。本地历史保留，云端资源和账号额度仍由实际登录账号决定。
 
-切换检查目标前端进程与 GPT home 的打开文件，使用与 App 启动相同的协作锁，再于写入前复查；路由 CLI 持有可跨 exec 的共享认证锁，多个 CLI 可同时运行，但切换器须等它们退出。发现占用就拒绝，不强杀进程。这不能阻止其它不遵守锁的程序在检查后直接启动，所以切换期间不要从 Finder、原生 CLI 或其它脚本打开 GPT。App 启动失败会明确报告“账号已选中、启动失败”，退出非零；先 `codex app accounts` 回读，不重复登记。重试 `codex app`，或在文件仍未变化时撤销最近一次账号操作：
+切换检查目标前端进程与 GPT home 的打开文件，使用与 App 启动相同的协作锁，再于写入前复查；路由 CLI 持有可跨 exec 的共享认证锁，多个 CLI 可同时运行，但切换器须等它们退出。发现占用就列出 PID / 命令并拒绝，不强杀进程。虚拟机或文件系统服务的句柄也会显示；先核验其客户端归属，不应为切换账号直接停止独立作业。确认服务内没有客户端使用 GPT 认证、独立作业使用其它 home 后，可对单次操作显式加 `--allow-read-only-owner PID`。此项不持久化；仅放行该 PID 的全部已观测句柄均为只读普通 FD 的情况，写入、未知访问方式、其它 PID 和运行中的 GPT App 仍拒绝。它不能证明服务内部客户端的归属，不能替代检查，也不能阻止不遵守协作锁的客户端随后启动。切换期间不要从 Finder、原生 CLI 或其它脚本打开 GPT。App 启动失败会明确报告“账号已选中、启动失败”，退出非零；先 `codex app accounts` 回读，不重复登记。重试 `codex app`，或在文件仍未变化时撤销最近一次账号操作：
 
 ```sh
 codex app rollback

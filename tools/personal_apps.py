@@ -330,18 +330,40 @@ def account_preflight(home, spec):
         manager.selected()  # Compare identity only; refreshed tokens may differ.
 
 
-def account_idle(home, spec):
-    """Never kill tasks; include backend/CLI ownership of the GPT home."""
+def account_idle(home, spec, read_only_owners=()):
+    """Never kill clients; explicit service exceptions must remain read-only."""
     exe = executable(app_bundle(spec, 'gpt', home))
     if running(exe, spec):
         raise ValueError('Quit the GPT App normally before switching; DS can remain open')
-    if spec['home'].exists():
-        result = subprocess.run(['/usr/sbin/lsof', '-t', '+d', str(spec['home'])],
-                                capture_output=True, text=True, timeout=10)
-        if result.returncode not in (0, 1):
-            raise ValueError('Cannot verify GPT home ownership; no account was changed')
-        if result.stdout.strip():
-            raise ValueError('GPT home is still open by an App/CLI process; close it before switching')
+    if not spec['home'].exists():
+        return
+    result = subprocess.run(['/usr/sbin/lsof', '-Fpcfa', '+d', str(spec['home'])],
+                            capture_output=True, text=True, timeout=10)
+    if result.returncode not in (0, 1):
+        raise ValueError('Cannot verify GPT home ownership; no account was changed')
+    owners, owner, descriptor = [], None, None
+    for line in result.stdout.splitlines():
+        if line.startswith('p') and line[1:].isdigit():
+            owner = {'pid': int(line[1:]), 'command': 'unknown', 'files': []}
+            owners.append(owner)
+            descriptor = None
+        elif line.startswith('c') and owner is not None:
+            owner['command'] = line[1:]
+        elif line.startswith('f') and owner is not None:
+            descriptor = {'fd': line[1:], 'access': None}
+            owner['files'].append(descriptor)
+        elif line.startswith('a') and descriptor is not None:
+            descriptor['access'] = line[1:]
+        elif line:
+            raise ValueError('Cannot parse GPT home ownership; no account was changed')
+    blocked = [owner for owner in owners if not (
+        owner['pid'] in read_only_owners and owner['files'] and all(
+            item['fd'].isdigit() and item['access'] == 'r' for item in owner['files']))]
+    if blocked:
+        details = ', '.join(f"{owner['pid']} ({owner['command']})" for owner in blocked)
+        raise ValueError('GPT home is still open by an App/CLI process or filesystem service; '
+                         f'close the owning client before switching: {details}. '
+                         'New-account enrollment without --current can continue while the App is open.')
 
 
 def account_command(home, args):
@@ -354,7 +376,8 @@ def account_command(home, args):
         if not binary:
             raise ValueError('Install the official Codex CLI before enrolling accounts')
         return binary
-    manager = Accounts(home, spec, lambda: account_idle(home, spec), login_cli,
+    manager = Accounts(home, spec, lambda: account_idle(
+        home, spec, getattr(args, 'allow_read_only_owner', ())), login_cli,
                        lambda selected: clean_env(selected, home))
     if args.account_action == 'status':
         return manager.status()
@@ -425,8 +448,12 @@ def main():
     switch.add_argument('--local', action='store_true', help='Local-only (also the default); no remote synchronization')
     switch.add_argument('--no-launch', action='store_true')
     switch.add_argument('--dry-run', action='store_true')
-    commands.add_parser('recover', help='Restore an interrupted account transaction with GPT closed')
-    commands.add_parser('rollback', help='Undo the most recent account operation if its files are unchanged')
+    recover = commands.add_parser('recover', help='Restore an interrupted account transaction with GPT closed')
+    rollback = commands.add_parser('rollback', help='Undo the most recent account operation if its files are unchanged')
+    for operation in (enroll, switch, recover, rollback):
+        operation.add_argument('--allow-read-only-owner', type=int, action='append', default=[],
+                               metavar='PID', help='After inspecting its clients, allow this filesystem service PID '
+                               'only while every observed handle is read-only; never bypass App/writer checks')
     args = parser.parse_args()
     try:
         home = Path.home().resolve()
