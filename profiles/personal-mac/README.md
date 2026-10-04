@@ -43,3 +43,5 @@ brew bundle install --file profiles/personal-mac/Brewfile.apps --no-upgrade
 桌面 Agent 客户端与一个主编辑器从官方入口安装，登录与许可证由本人处理。[App 协同与命令](./APP_WORKFLOW.md) 包含 `codex app`、`codex ds app`、Ego Lite、Typora、状态隔离与 Finder/Dock 入口，需单独初始化和验收。LoopX 路由只作后续阶段参考，本步不安装、更新或启动其 runtime。Mendeley、CodexBar、CC Switch、办公 / 日常应用按清单决定，报告记录安装、暂缓及设置验收。自动任务不随装机启动。
 
 应用来自官方网站；包清单与 [Homebrew Bundle](https://docs.brew.sh/Brew-Bundle-and-Brewfile) 管理方式分开。记录实际版本和验收结果到新机本地，不把凭证、会话历史、进程环境或完整机器清单提交到仓库。
+
+Cursor 使用本机 Veee 代理时，另按 [Cursor 与 Veee 分流](./NETWORK.md) 预览、应用、读回和回滚。该可选配置保留全局代理连接，追加常用国内网站的系统直连规则；bootstrap 不自动改网络或编辑器设置。

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "proxy_url": "http://127.0.0.1:15236",
+  "veee_mode": "global",
+  "cursor_settings": {
+    "cursor.general.disableHttp2": true,
+    "http.proxySupport": "override",
+    "http.proxyStrictSSL": true
+  },
+  "bypass_domains": [
+    "localhost", "127.0.0.1", "::1", "*.local", "169.254/16",
+    "*.cn", "*.中国", "*.xn--fiqs8s",
+    "baidu.com", "*.baidu.com",
+    "qq.com", "*.qq.com",
+    "bilibili.com", "*.bilibili.com",
+    "taobao.com", "*.taobao.com",
+    "tmall.com", "*.tmall.com",
+    "jd.com", "*.jd.com",
+    "alipay.com", "*.alipay.com",
+    "douyin.com", "*.douyin.com",
+    "xiaohongshu.com", "*.xiaohongshu.com",
+    "meituan.com", "*.meituan.com"
+  ]
+}
