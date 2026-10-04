@@ -170,14 +170,14 @@ class Accounts:
             raise ValueError('Account selection is invalid or belongs to a different GPT route') from None
 
     @contextlib.contextmanager
-    def lock(self):
+    def lock(self, *, enrollment=False):
         # Same lock as App launch: cooperating launch/switch processes cannot race.
         folder = checked(self.root.parent)
         private_dir(folder)
         path = checked(folder / 'launch.lock')
         with open(path, 'a', opener=lambda p, flags: os.open(p, flags, 0o600)) as stream:
             fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            with credential_lock(self.home):
+            with credential_lock(self.home, shared=enrollment):
                 private_dir(self.root)
                 yield
 
@@ -288,12 +288,15 @@ class Accounts:
 
     def enroll(self, name, current=False):
         target = self.slot(name)
-        self.idle()
-        with self.lock():
+        if current:
+            self.idle()
+        # Staged login never reads or changes the active credentials. Share the
+        # CLI lease, but serialize slot creation and switching with launch.lock.
+        with self.lock(enrollment=not current):
             if self.pending.exists() or target.exists():
                 raise ValueError('Recover any interrupted operation first; existing slots are never overwritten')
-            converted = file_config(self.config.read_bytes())
             if current:
+                converted = file_config(self.config.read_bytes())
                 raw = read_private(self.auth)
                 ident = identity(raw)
                 state = self.state()
@@ -312,10 +315,17 @@ class Accounts:
             existing = self.status()['slots']
             if any(identity(read_private(self.slot(other))) == ident for other in existing):
                 raise ValueError('That ChatGPT account is already registered; select its existing slot')
-            updates = [('slot:' + name, raw)]
             if current:
-                updates += [('config', converted), ('active', encoded({'slot': name, 'identity': ident, 'binding': self.binding}))]
-            result = self.transaction(updates, 'enroll-current' if current else 'enroll')
+                updates = [('slot:' + name, raw), ('config', converted),
+                           ('active', encoded({'slot': name, 'identity': ident, 'binding': self.binding}))]
+                result = self.transaction(updates, 'enroll-current')
+            else:
+                # Only an immutable new slot is published. Do not create a live
+                # recovery journal or replace the last credential-switch backup.
+                if not self.binding_file.exists():
+                    atomic(self.binding_file, encoded(self.binding))
+                atomic(target, raw)
+                result = {'operation': 'enroll', 'history_untouched': True}
             return dict(result, slot=name, activated=current, credentials_printed=False)
 
     def switch(self, name, dry_run=False):

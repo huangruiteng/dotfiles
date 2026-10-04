@@ -86,6 +86,30 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(self.manager.status()['active_slot'], 'a')
         self.assertEqual(list((self.manager.root / 'login-staging').iterdir()), [])
 
+    def test_live_enrollment_shares_cli_lease_and_preserves_switch_recovery(self):
+        self.current()
+        before = {p: p.read_bytes() for p in (self.manager.auth, self.manager.config,
+                  self.manager.active, self.manager.root / 'last.json')}
+        self.idle.reset_mock()
+        self.idle.side_effect = ValueError('App is active')
+        with accounts.credential_lock(self.home, shared=True):
+            result = self.enroll_b()
+        self.assertFalse(result['activated'])
+        self.idle.assert_not_called()
+        self.assertEqual({p: p.read_bytes() for p in before}, before)
+        self.assertFalse(self.manager.pending.exists())
+        self.assertEqual(self.manager.slot('b').read_bytes(), self.b)
+
+    def test_live_enrollment_without_current_slot_does_not_change_active_files(self):
+        before = {p: p.read_bytes() for p in (self.manager.auth, self.manager.config)}
+        self.idle.side_effect = ValueError('App is active')
+        self.enroll_b()
+        self.assertFalse(self.manager.active.exists())
+        self.assertFalse(self.manager.pending.exists())
+        self.assertFalse((self.manager.root / 'last.json').exists())
+        self.assertEqual({p: p.read_bytes() for p in before}, before)
+        self.assertEqual(self.manager.status()['slots'], ['b'])
+
     def test_switch_preserves_real_sqlite_rollout_and_one_route(self):
         self.ready()
         db = self.spec['home'] / 'state_5.sqlite'
@@ -317,9 +341,29 @@ class AccountTests(unittest.TestCase):
         with patch.object(apps, 'app_bundle'), patch.object(apps, 'executable'), patch.object(apps, 'running', return_value=42):
             with self.assertRaisesRegex(ValueError, 'Quit the GPT'):
                 apps.account_idle(self.home, self.spec)
-        with patch.object(apps, 'app_bundle'), patch.object(apps, 'executable'), patch.object(apps, 'running', return_value=None), patch.object(apps.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='77\n')):
+        with patch.object(apps, 'app_bundle'), patch.object(apps, 'executable'), patch.object(apps, 'running', return_value=None), patch.object(apps.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='p77\ncbackend\nf10\nau\n')):
             with self.assertRaisesRegex(ValueError, 'App/CLI process'):
                 apps.account_idle(self.home, self.spec)
+
+    def test_explicit_read_only_service_exception_does_not_exempt_writers(self):
+        for output, permitted in [
+            ('p77\ncfilesystem\nf10\nar\n', True),
+            ('p77\ncfilesystem\nf10\nau\n', False),
+            ('p77\ncfilesystem\nf10\nar\nf11\naw\n', False),
+            ('p77\ncfilesystem\nf10\n', False),
+            ('p77\ncfilesystem\n', False),
+            ('p77\ncfilesystem\nfcwd\na \n', False),
+            ('p88\ncbackend\nf10\nau\n', False),
+            ('p77\ncfilesystem\nf10\nar\np88\ncbackend\nf20\nau\n', False),
+        ]:
+            with self.subTest(output=output), patch.object(apps, 'app_bundle'), patch.object(apps, 'executable'), patch.object(apps, 'running', return_value=None), patch.object(apps.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout=output)):
+                if permitted:
+                    apps.account_idle(self.home, self.spec, [77])
+                    with self.assertRaises(ValueError):
+                        apps.account_idle(self.home, self.spec)
+                else:
+                    with self.assertRaises(ValueError):
+                        apps.account_idle(self.home, self.spec, [77])
 
     def test_cli_parser_local_switch_and_launch_failure_reports_commit(self):
         with patch.object(apps, 'account_command', return_value={'slot':'a'} ) as call, patch.object(sys, 'argv', ['personal-apps','accounts','switch','a','--local','--no-launch']), contextlib.redirect_stdout(io.StringIO()):
