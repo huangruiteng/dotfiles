@@ -3,7 +3,13 @@
 _dotfiles_apps() { "$DOTFILES_ROOT/tools/personal-apps" "$@"; }
 codex() {
   case "${1:-}" in
-    app) shift; _dotfiles_apps open gpt "$@" ;;
+    app)
+      shift
+      case "${1:-}" in
+        enroll|switch|recover|rollback) _dotfiles_apps accounts "$@" ;;
+        accounts|status) shift; _dotfiles_apps accounts status "$@" ;;
+        *) _dotfiles_apps open gpt "$@" ;;
+      esac ;;
     ds)
       shift
       if [[ ${1:-} == app ]]; then shift; _dotfiles_apps open ds "$@"
