@@ -161,8 +161,10 @@ def check_provider(spec, role):
     except tomllib.TOMLDecodeError:
         raise ValueError('Invalid local Codex TOML; repair it locally without printing secrets') from None
     if role == 'gpt':
+        # Extra definitions do not select a provider. Keep the native default
+        # and catalog, and reject a definition that shadows the native ID.
         if (cfg.get('model_provider', 'openai') != 'openai' or cfg.get('model_catalog_json')
-                or cfg.get('model_providers')):
+                or 'openai' in (cfg.get('model_providers') or {})):
             raise ValueError('GPT route requires the native OpenAI provider and catalog')
     else:
         from urllib.parse import urlsplit
