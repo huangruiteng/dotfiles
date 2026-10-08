@@ -110,7 +110,9 @@ def file_config(raw):
         cfg = tomllib.loads(text)
     except (ValueError, UnicodeError):
         raise ValueError('Invalid GPT config; repair locally without printing its contents') from None
-    if (cfg.get('model_provider', 'openai') != 'openai' or cfg.get('model_providers')
+    # Preserve unused custom definitions; they do not change the native route.
+    if (cfg.get('model_provider', 'openai') != 'openai'
+            or 'openai' in (cfg.get('model_providers') or {})
             or cfg.get('model_catalog_json') or cfg.get('profiles') or cfg.get('profile')):
         raise ValueError('Account switching requires an ordinary native GPT config')
     if cfg.get('cli_auth_credentials_store') not in (None, 'auto', 'file'):
