@@ -169,6 +169,21 @@ class AppTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             m.check_provider(spec, 'gpt')
 
+    def test_read_only_owner_duplicate_descriptor_is_allowed(self):
+        self.initialize()
+        spec = m.route(self.home, 'gpt')
+        result = subprocess.CompletedProcess([], 0, stdout='p4321\nccom.apple.Virtualization\nf*665\nar\n')
+        with patch.object(m, 'running', return_value=None), patch.object(m.subprocess, 'run', return_value=result):
+            m.account_idle(self.home, spec, (4321,))
+
+    def test_writable_duplicate_descriptor_is_still_blocked(self):
+        self.initialize()
+        spec = m.route(self.home, 'gpt')
+        result = subprocess.CompletedProcess([], 0, stdout='p4321\nccom.apple.Virtualization\nf*665\nau\n')
+        with patch.object(m, 'running', return_value=None), patch.object(m.subprocess, 'run', return_value=result):
+            with self.assertRaisesRegex(ValueError, 'still open'):
+                m.account_idle(self.home, spec, (4321,))
+
     def test_gpt_allows_unused_provider_and_preserves_config(self):
         self.initialize()
         spec = m.route(self.home, 'gpt')
