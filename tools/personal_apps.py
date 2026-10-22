@@ -350,7 +350,9 @@ def account_idle(home, spec, read_only_owners=()):
         elif line.startswith('c') and owner is not None:
             owner['command'] = line[1:]
         elif line.startswith('f') and owner is not None:
-            descriptor = {'fd': line[1:], 'access': None}
+            # lsof marks some descriptors with a leading '*' (duplicate handles);
+            # keep the numeric identity so read-only owners can still be allowed.
+            descriptor = {'fd': line[1:].lstrip('*'), 'access': None}
             owner['files'].append(descriptor)
         elif line.startswith('a') and descriptor is not None:
             descriptor['access'] = line[1:]
