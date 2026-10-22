@@ -86,6 +86,39 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(self.manager.status()['active_slot'], 'a')
         self.assertEqual(list((self.manager.root / 'login-staging').iterdir()), [])
 
+    def test_unused_provider_survives_account_enrollment_switch_and_rollback(self):
+        tail = ('# Keep optional transport and unrelated sections verbatim.\n'
+                '[model_providers.optional_http]\nname="Optional HTTP"\n'
+                'wire_api="responses"\nrequires_openai_auth=true\n'
+                'supports_websockets=false\n'
+                '[mcp_servers.demo]\ncommand="demo"\n')
+        for default in ('', 'model_provider="openai"\n'):
+            with self.subTest(default=default):
+                raw = ('# kept\nmodel="gpt-example"\n' + default + tail).encode()
+                updated = accounts.file_config(raw)
+                self.assertTrue(updated.endswith(tail.encode()))
+                self.assertIn(('model="gpt-example"\n' + default).encode(), updated)
+        self.manager.config.write_bytes(raw)
+        self.ready()
+        before = self.manager.config.read_bytes()
+        self.manager.switch('b')
+        self.assertEqual(self.manager.auth.read_bytes(), self.b)
+        self.assertEqual(self.manager.config.read_bytes(), before)
+        self.manager.recover(rollback=True)
+        self.assertEqual(self.manager.auth.read_bytes(), self.a)
+        self.assertEqual(self.manager.config.read_bytes(), before)
+        self.assertTrue(before.endswith(tail.encode()))
+
+    def test_non_native_routes_and_profiles_are_not_converted(self):
+        for raw in (b'model_provider="optional_http"\n',
+                    b'model_catalog_json="models.json"\n',
+                    b'[model_providers.openai]\n',
+                    b'profile="custom"\n',
+                    b'[profiles.custom]\nmodel_provider="optional_http"\n'):
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(ValueError, 'native GPT'):
+                    accounts.file_config(raw)
+
     def test_live_enrollment_shares_cli_lease_and_preserves_switch_recovery(self):
         self.current()
         before = {p: p.read_bytes() for p in (self.manager.auth, self.manager.config,

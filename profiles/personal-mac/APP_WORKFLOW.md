@@ -69,7 +69,7 @@ DS 按 [官方 Codex 集成说明](https://api-docs.deepseek.com/quick_start/age
 3. 复核当前客户端、Flash 模型与 provider/catalog 配置。不运行默认覆写 `~/.codex` 的一键脚本，GPT 保持原生配置。
 4. `codex ds app --dry-run`，再 `codex ds app`，确认正确模型并完成一个有界个人请求。key 或余额未准备好时标为“待本人操作”，继续其它独立验收。
 
-启动拒绝 GPT 自定义 provider、DS 占位 key/缺 catalog/不安全权限，以及重复或嵌套的状态路径。清除继承的 Codex thread、IPC、API override 与 Electron 注入环境，保留普通网络代理，显式传入角色 home 与前端路径。已运行窗口按 PID 聚焦，无法确认所有者则停止；新窗口直接执行已安装且签名校验通过的 App，不克隆或修改厂商 bundle。
+GPT 默认路由必须使用原生 `openai` 和内置 catalog；启动拒绝选中的非原生 provider、`openai` 同名定义及 catalog 覆写。未选中的额外 `model_providers` 定义可以保留，检查不改写配置；定义与选择的区别见 [Codex 配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。启动还拒绝 DS 占位 key/缺 catalog/不安全权限，以及重复或嵌套的状态路径。清除继承的 Codex thread、IPC、API override 与 Electron 注入环境，保留普通网络代理，显式传入角色 home 与前端路径。已运行窗口按 PID 聚焦，无法确认所有者则停止；新窗口直接执行已安装且签名校验通过的 App，不克隆或修改厂商 bundle。
 
 `CODEX_HOME` 范围见 [官方说明](https://learn.chatgpt.com/docs/config-file/environment-variables)。双窗口的前端参数与进程识别是自定义集成，需在新机当前 App 验收，升级后也要复核。脚本退出码不等于模型调用成功：检查实际 home、模型和新任务落盘位置，不 dump auth 或会话内容。
 
@@ -85,7 +85,7 @@ codex app enroll b
 codex app accounts
 ```
 
-`--current` 只读取新机配置所指定 GPT home 的登录，不读取旧电脑或其它 home。没有现成登录时，直接 `codex app enroll a`，在官方浏览器流程完成账号 A 登录，再选择 A。槽位标签限小写字母、数字和连字符，不接受邮箱；同一账号和已有槽位不会被重复覆盖。启用时只将两项认证设置明确为 ChatGPT + file storage，保留模型及其它配置；显式 keyring/ephemeral、自定义 provider 或复杂 profiles 配置需本人先审查，脚本不强制转换。
+`--current` 只读取新机配置所指定 GPT home 的登录，不读取旧电脑或其它 home。没有现成登录时，直接 `codex app enroll a`，在官方浏览器流程完成账号 A 登录，再选择 A。槽位标签限小写字母、数字和连字符，不接受邮箱；同一账号和已有槽位不会被重复覆盖。启用时只将两项认证设置明确为 ChatGPT + file storage，保留模型、未选中的 provider 定义及其它配置；显式 keyring/ephemeral、选中的非原生 provider、`openai` 同名定义、catalog 覆写或复杂 profiles 配置需本人先审查，脚本不强制转换。
 
 日常切换与预览：
 
