@@ -169,6 +169,35 @@ class AppTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             m.check_provider(spec, 'gpt')
 
+    def test_gpt_allows_unused_provider_and_preserves_config(self):
+        self.initialize()
+        spec = m.route(self.home, 'gpt')
+        path = spec['home'] / 'config.toml'
+        provider = ('# Optional transport; explicitly selected by another client.\n'
+                    '[model_providers.optional_http]\nname="Optional HTTP"\n'
+                    'wire_api="responses"\nrequires_openai_auth=true\n'
+                    'supports_websockets=false\n')
+        for default in ('', 'model_provider="openai"\n'):
+            with self.subTest(default=default):
+                raw = ('model="gpt-example"\n' + default + provider).encode()
+                path.write_bytes(raw)
+                m.check_provider(spec, 'gpt')
+                with patch.object(m, 'app_bundle', return_value=self.bundle), patch.object(m, 'running', return_value=None):
+                    result = m.open_app(self.home, 'gpt', [], dry_run=True)
+                self.assertEqual(result['role'], 'gpt')
+                self.assertEqual(path.read_bytes(), raw)
+
+    def test_gpt_rejects_native_provider_shadow_and_catalog_override(self):
+        self.initialize()
+        spec = m.route(self.home, 'gpt')
+        for config in ('model_catalog_json="models.json"\n',
+                       '[model_providers.openai]\n',
+                       '[model_providers.openai]\nbase_url="https://example.invalid"\n'):
+            with self.subTest(config=config):
+                (spec['home'] / 'config.toml').write_text(config)
+                with self.assertRaisesRegex(ValueError, 'native OpenAI'):
+                    m.check_provider(spec, 'gpt')
+
     def test_ds_catalog_has_to_contain_selected_model(self):
         spec = self.ds_ready()
         (spec['home'] / 'models.json').write_text('{"models": []}')
