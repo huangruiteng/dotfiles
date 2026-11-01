@@ -12,7 +12,9 @@ Codex GPT 负责主要开发、判断和交接；Codex DS 是独立模型入口�
 | Ego Lite | [厂商下载](https://lite.ego.app/) 与 [安装说明](https://github.com/citrolabs/ego-lite/blob/main/skills/ego-browser/references/install.md) | onboarding、是否导入新机个人 Chrome profile |
 | Typora | `Brewfile.apps` 或 [官网](https://typora.io/) | 许可证、inline math |
 
-App 命令需要 Python 3.11+。基础 Brewfile 提供固定 Python 3.12，项目 venv 由 uv 管理；入口找不到 Homebrew Python 时，用 uv **离线查找**已安装的合适版本，不下载解释器，不使用 App 内置路径。安装 CLI 前先盘点已有官方可用入口，避免重复安装；App bundle 内部路径不是永久接口，升级后复核。
+App 命令需要 Python 3.11+ 和独立扩展 `loopx-codex-provider-routing >= 0.13.0`。账号事务、锁、恢复和 Codex 开窗只有 LoopX 扩展一份实现，本仓库只保留个人配置映射与命令入口。扩展 wheel 不依赖 LoopX Core，不会安装或启动 runtime。
+
+已安装 LoopX 时，入口复用其 `scripts/loopx-python.sh` 选择解释器；显式 `LOOPX_PYTHON` 优先。独立安装则沿用基础 Brewfile 的 Python 3.12，缺失时通过 uv **离线查找**已安装版本，不下载解释器。在所选解释器中安装该扩展 wheel，或从 LoopX 源码的 `packages/loopx-codex-provider-routing` 安装。缺少扩展时明确报错，不回退到本仓库旧实现。安装 CLI 前先盘点已有官方可用入口，避免重复安装；App bundle 内部路径不是永久接口，升级后复核。
 
 从 dotfiles 根目录执行：
 
@@ -97,7 +99,9 @@ codex app switch a --local         # --local 可省略；始终不做远端同�
 codex app switch a --no-launch     # 只完成离线选择，随后 codex app 打开
 ```
 
-以上是 dotfiles 自定义命令；对应跨 shell 命令为 `personal-apps accounts enroll …`、`personal-apps accounts switch …` 和 `personal-apps accounts status`。不会安装或调用旧机的 `codex-official`。OpenAI 原生登录及 file/keyring 存储语义见 [官方认证说明](https://learn.chatgpt.com/docs/auth)；槽位管理、离线文件事务和 App 重开属于本仓库集成。
+以上是 dotfiles 自定义命令；对应跨 shell 命令为 `personal-apps accounts enroll …`、`personal-apps accounts switch …` 和 `personal-apps accounts status`。它们 import LoopX 扩展中的账号 owner，与 LoopX App 共用原 vault、账号锁、启动锁和恢复事务；LoopX 不反向依赖 dotfiles。不会安装或调用旧机的 `codex-official`。OpenAI 原生登录及 file/keyring 存储语义见 [官方认证说明](https://learn.chatgpt.com/docs/auth)。
+
+订阅额度耗尽后自动进入 OpenAI API、Key 配置和可观测额度状态由 LoopX 的「设置 → 模型提供方」管理。默认不启用，所有授权订阅均确认耗尽后才使用 API；订阅恢复后优先返回。上游 Key 只在扩展私有存储，原生 vault 只保存本地 relay 凭据。这里不新增 Key 配置或另一套自动切换策略。
 
 离开当前账号前保存它在最近使用中刷新后的缓存，再原子写入目标登录、两项认证设置和选择记录。状态与恢复快照仅在 `~/.local/state/personal-apps/gpt-accounts/`，目录 700、文件 600，不打印 token、邮箱或账号标识，不进入 Git 或交接压缩包。认证由官方 Codex 验证和刷新，槽位登记/脚本成功不等于账号当前仍可用。本地历史保留，云端资源和账号额度仍由实际登录账号决定。
 

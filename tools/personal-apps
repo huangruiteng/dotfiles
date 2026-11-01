@@ -8,6 +8,23 @@ while [ -L "$app_source" ]; do
   case "$app_target" in /*) app_source=$app_target ;; *) app_source=$app_dir/$app_target ;; esac
 done
 app_dir=$(CDPATH= cd -- "$(dirname -- "$app_source")" && pwd)
+# Reuse LoopX's interpreter selection so both callers import the same package.
+if [ -n "${LOOPX_PYTHON:-}" ]; then
+  exec "$LOOPX_PYTHON" "$app_dir/personal_apps.py" "$@"
+fi
+app_loopx=$(command -v loopx 2>/dev/null || true)
+if [ -f "$app_loopx" ]; then
+  while [ -L "$app_loopx" ]; do
+    app_loopx_dir=$(CDPATH= cd -- "$(dirname -- "$app_loopx")" && pwd)
+    app_loopx_target=$(readlink "$app_loopx")
+    case "$app_loopx_target" in /*) app_loopx=$app_loopx_target ;; *) app_loopx=$app_loopx_dir/$app_loopx_target ;; esac
+  done
+  app_selector=$(dirname -- "$app_loopx")/loopx-python.sh
+  if [ -f "$app_selector" ]; then
+    exec /bin/bash "$app_selector" --exec "$app_dir/personal_apps.py" "$@"
+  fi
+fi
+# The standalone extension also works without a LoopX Core installation.
 for app_python in /opt/homebrew/opt/python@3.12/bin/python3.12 /usr/local/opt/python@3.12/bin/python3.12; do
   if [ -x "$app_python" ]; then exec "$app_python" "$app_dir/personal_apps.py" "$@"; fi
 done

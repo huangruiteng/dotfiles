@@ -117,7 +117,7 @@ class AppTests(unittest.TestCase):
 
     def test_open_preview_never_launches(self):
         self.initialize()
-        with patch.object(m, 'running', return_value=None), patch.object(m.subprocess, 'Popen') as launch:
+        with patch.object(m._native, 'running', return_value=None), patch.object(m.subprocess, 'Popen') as launch:
             result = m.open_app(self.home, 'gpt', [], dry_run=True)
         self.assertTrue(result['preview'])
         launch.assert_not_called()
@@ -125,7 +125,7 @@ class AppTests(unittest.TestCase):
 
     def test_running_route_uses_pid_focus_not_open_bundle(self):
         self.initialize()
-        with patch.object(m, 'running', return_value=42), patch.object(m.subprocess, 'run') as run, patch.object(m.subprocess, 'Popen') as spawn:
+        with patch.object(m._native, 'running', return_value=42), patch.object(m.subprocess, 'run') as run, patch.object(m.subprocess, 'Popen') as spawn:
             result = m.open_app(self.home, 'gpt', [])
         self.assertEqual(result['action'], 'focused')
         self.assertEqual(run.call_args.args[0][-1], '42')
@@ -134,7 +134,7 @@ class AppTests(unittest.TestCase):
 
     def test_new_launch_has_separate_state_and_no_secret_argv(self):
         self.initialize()
-        with patch.object(m, 'running', side_effect=[None, None, 100]), patch.object(m.subprocess, 'run'), patch.object(m.subprocess, 'Popen') as spawn:
+        with patch.object(m._native, 'running', side_effect=[None, None, 100]), patch.object(m.subprocess, 'run'), patch.object(m.subprocess, 'Popen') as spawn:
             spawn.return_value.pid = 100
             spawn.return_value.poll.return_value = None
             result = m.open_app(self.home, 'gpt', [])
@@ -173,14 +173,14 @@ class AppTests(unittest.TestCase):
         self.initialize()
         spec = m.route(self.home, 'gpt')
         result = subprocess.CompletedProcess([], 0, stdout='p4321\nccom.apple.Virtualization\nf*665\nar\n')
-        with patch.object(m, 'running', return_value=None), patch.object(m.subprocess, 'run', return_value=result):
+        with patch.object(m._native, 'running', return_value=None), patch.object(m.subprocess, 'run', return_value=result):
             m.account_idle(self.home, spec, (4321,))
 
     def test_writable_duplicate_descriptor_is_still_blocked(self):
         self.initialize()
         spec = m.route(self.home, 'gpt')
         result = subprocess.CompletedProcess([], 0, stdout='p4321\nccom.apple.Virtualization\nf*665\nau\n')
-        with patch.object(m, 'running', return_value=None), patch.object(m.subprocess, 'run', return_value=result):
+        with patch.object(m._native, 'running', return_value=None), patch.object(m.subprocess, 'run', return_value=result):
             with self.assertRaisesRegex(ValueError, 'still open'):
                 m.account_idle(self.home, spec, (4321,))
 
@@ -197,7 +197,7 @@ class AppTests(unittest.TestCase):
                 raw = ('model="gpt-example"\n' + default + provider).encode()
                 path.write_bytes(raw)
                 m.check_provider(spec, 'gpt')
-                with patch.object(m, 'app_bundle', return_value=self.bundle), patch.object(m, 'running', return_value=None):
+                with patch.object(m, 'app_bundle', return_value=self.bundle), patch.object(m._native, 'running', return_value=None):
                     result = m.open_app(self.home, 'gpt', [], dry_run=True)
                 self.assertEqual(result['role'], 'gpt')
                 self.assertEqual(path.read_bytes(), raw)
@@ -210,7 +210,7 @@ class AppTests(unittest.TestCase):
                        '[model_providers.openai]\nbase_url="https://example.invalid"\n'):
             with self.subTest(config=config):
                 (spec['home'] / 'config.toml').write_text(config)
-                with self.assertRaisesRegex(ValueError, 'native OpenAI'):
+                with self.assertRaisesRegex(ValueError, 'OpenAI provider'):
                     m.check_provider(spec, 'gpt')
 
     def test_ds_catalog_has_to_contain_selected_model(self):
@@ -334,6 +334,24 @@ codex secondary app
         subprocess.run([m.sys.executable, str(ROOT / 'tools/install.py'), '--rollback', receipt, '--apply'],
                        check=True, capture_output=True)
         self.assertFalse(entry.exists())
+
+    def test_shell_reuses_loopx_interpreter_selector_through_symlinks(self):
+        install = self.home / 'loopx-install/scripts'
+        install.mkdir(parents=True)
+        (install / 'loopx').write_text('#!/bin/sh\nexit 99\n')
+        (install / 'loopx').chmod(0o755)
+        (install / 'loopx-python.sh').write_text(
+            '#!/bin/bash\n[ "$1" = --exec ] || exit 97\nshift\n'
+            'printf "selected:%s\\n" "$@"\n')
+        binary = self.home / 'bin'
+        binary.mkdir()
+        (binary / 'loopx').symlink_to(install / 'loopx')
+        env = {**os.environ, 'PATH': str(binary) + ':/usr/bin:/bin'}
+        env.pop('LOOPX_PYTHON', None)
+        result = subprocess.run([str(ROOT / 'tools/personal-apps'), 'open', 'gpt', '--dry-run'],
+                                env=env, capture_output=True, text=True, check=True)
+        self.assertIn('selected:' + str(ROOT / 'tools/personal_apps.py'), result.stdout)
+        self.assertIn('selected:--dry-run', result.stdout)
 
 
 if __name__ == '__main__':
